@@ -7,6 +7,7 @@ import {
   ScrollView,
   Animated,
 } from "react-native";
+import { useRouter } from "expo-router";
 
 // Total work time in seconds (25 min)
 const WORK_TIME = 25 * 60;
@@ -22,6 +23,8 @@ const CATEGORIES = [
 ];
 
 export default function Index() {
+  // Hook to navigate between screens
+  const router = useRouter();
   // Seconds remaining on the timer
   const [seconds, setSeconds] = useState(WORK_TIME);
   // Whether the timer is currently running
@@ -242,6 +245,13 @@ export default function Index() {
       >
         {/* ── TIMER SECTION ── */}
         <View style={{ alignItems: "center", width: "100%", maxWidth: 400 }}>
+          {/* Settings button — top right corner */}
+          <TouchableOpacity
+            onPress={() => router.push("/settings" as any)}
+            style={{ alignSelf: "flex-end", marginBottom: 8 }}
+          >
+            <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
+          </TouchableOpacity>
           {/* Mode label + pomodoro count */}
           <View
             style={{
