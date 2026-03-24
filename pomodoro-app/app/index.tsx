@@ -5,6 +5,7 @@ import {
   TouchableOpacity,
   TextInput,
   ScrollView,
+  Animated,
 } from "react-native";
 
 // Total work time in seconds (25 min)
@@ -45,6 +46,14 @@ export default function Index() {
   const [editInput, setEditInput] = useState("");
   // Reference to the interval so we can cancel it later
   const IntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Fish positions — each fish swims independently
+  const fish1X = useRef(new Animated.Value(0)).current;
+  const fish2X = useRef(new Animated.Value(100)).current;
+  const fish3X = useRef(new Animated.Value(220)).current;
+  // Fish direction — 1 = facing right, -1 = facing left
+  const fish1Scale = useRef(new Animated.Value(1)).current;
+  const fish2Scale = useRef(new Animated.Value(1)).current;
+  const fish3Scale = useRef(new Animated.Value(1)).current;
 
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
@@ -80,6 +89,13 @@ export default function Index() {
     // Cleanup interval when component unmounts
     return () => clearInterval(IntervalRef.current!);
   }, [isRunning]);
+
+  // Start fish animations when the app loads
+  useEffect(() => {
+    swimFish(fish1X, fish1Scale, 0);
+    swimFish(fish2X, fish2Scale, 100);
+    swimFish(fish3X, fish3Scale, 220);
+  }, []);
 
   // Converts seconds to MM:SS format. padStart(2,"0") makes sure it always has two digits - so it shows 04:05 and not 4:5
   function formatTime(s: number) {
@@ -189,6 +205,30 @@ export default function Index() {
     setEditingIndex(null);
     setEditInput("");
   }
+  function swimFish(
+    fishX: Animated.Value,
+    fishScale: Animated.Value,
+    startX: number,
+  ) {
+    // Face right and swim to the end
+    fishScale.setValue(-1); // turns the fish to the right
+    Animated.timing(fishX, {
+      // moves the fish to the position 320px
+      toValue: 320,
+      duration: 3000, // in 3 secs
+      useNativeDriver: true,
+    }).start(() => {
+      // when it ends...
+      // Face left and swim back
+      fishScale.setValue(1); // turns the fish to the right
+      Animated.timing(fishX, {
+        // goes back to the original position
+        toValue: startX,
+        duration: 3000,
+        useNativeDriver: true,
+      }).start(() => swimFish(fishX, fishScale, startX)); // when it ends, it calls to itself = infinite loop
+    });
+  }
 
   return (
     <View style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
@@ -295,16 +335,51 @@ export default function Index() {
           </View>
         </View>
 
-        {/* ── DIVIDER ── */}
+        {/* ── FISH TANK ── */}
         <View
           style={{
             width: "100%",
             maxWidth: 400,
-            height: 1,
-            backgroundColor: "#1e1e30",
+            height: 80,
+            backgroundColor: "#0a1628",
+            borderRadius: 16,
             marginVertical: 32,
+            overflow: "hidden",
+            borderWidth: 1,
+            borderColor: "#1a3a5c",
           }}
-        />
+        >
+          <Animated.Text
+            style={{
+              fontSize: 24,
+              position: "absolute",
+              top: 24,
+              transform: [{ translateX: fish1X }, { scaleX: fish1Scale }],
+            }}
+          >
+            🐠
+          </Animated.Text>
+          <Animated.Text
+            style={{
+              fontSize: 20,
+              position: "absolute",
+              top: 10,
+              transform: [{ translateX: fish2X }, { scaleX: fish2Scale }],
+            }}
+          >
+            🐟
+          </Animated.Text>
+          <Animated.Text
+            style={{
+              fontSize: 18,
+              position: "absolute",
+              top: 38,
+              transform: [{ translateX: fish3X }, { scaleX: fish3Scale }],
+            }}
+          >
+            🐡
+          </Animated.Text>
+        </View>
 
         {/* ── TASKS SECTION ── */}
         <View style={{ width: "100%", maxWidth: 400 }}>
