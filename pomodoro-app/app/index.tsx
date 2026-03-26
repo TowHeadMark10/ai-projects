@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Text,
   View,
@@ -6,12 +6,14 @@ import {
   TextInput,
   ScrollView,
   Animated,
+  AppState,
 } from "react-native";
+import { useRouter, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Total work time in seconds (25 min)
-const WORK_TIME = 25 * 60;
-// Total break time in seconds (5 min)
-const BREAK_TIME = 5 * 60;
+// Default times in seconds
+const DEFAULT_WORK = 25 * 60;
+const DEFAULT_BREAK = 5 * 60;
 // Available task categories
 const CATEGORIES = [
   { label: "Work", emoji: "💼" },
@@ -22,8 +24,14 @@ const CATEGORIES = [
 ];
 
 export default function Index() {
+  // Hook to navigate between screens
+  const router = useRouter();
   // Seconds remaining on the timer
-  const [seconds, setSeconds] = useState(WORK_TIME);
+  const [seconds, setSeconds] = useState(DEFAULT_WORK);
+  // Work time in seconds (can be changed in settings)
+  const [workTime, setWorkTime] = useState(DEFAULT_WORK);
+  // Break time in seconds (can be changed in settings)
+  const [breakTime, setBreakTime] = useState(DEFAULT_BREAK);
   // Whether the timer is currently running
   const [isRunning, setIsRunning] = useState(false);
   // Whether we are in work mode or break mode
@@ -46,6 +54,10 @@ export default function Index() {
   const [editInput, setEditInput] = useState("");
   // Reference to the interval so we can cancel it later
   const IntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  // Tracks if the timer was running before going to background
+  const wasRunningRef = useRef(false);
+  // Always holds the latest value of isRunning (for use inside callbacks)
+  const isRunningRef = useRef(false);
   // Fish positions — each fish swims independently
   const fish1X = useRef(new Animated.Value(0)).current;
   const fish2X = useRef(new Animated.Value(100)).current;
@@ -54,6 +66,8 @@ export default function Index() {
   const fish1Scale = useRef(new Animated.Value(1)).current;
   const fish2Scale = useRef(new Animated.Value(1)).current;
   const fish3Scale = useRef(new Animated.Value(1)).current;
+  // Whether focus mode is enabled (pauses timer when leaving app)
+  const [focusMode, setFocusMode] = useState(false);
 
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
@@ -75,7 +89,7 @@ export default function Index() {
               const nextisBreak = !prev;
               // If switching to break, if means a work session just ended - add 1
               if (nextisBreak) setPomodoroCount((c) => c + 1);
-              setSeconds(nextisBreak ? BREAK_TIME : WORK_TIME);
+              setSeconds(nextisBreak ? breakTime : workTime);
               return nextisBreak;
             });
             return 0;
@@ -89,6 +103,51 @@ export default function Index() {
     // Cleanup interval when component unmounts
     return () => clearInterval(IntervalRef.current!);
   }, [isRunning]);
+
+  // Reload work/break times every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      async function loadTimes() {
+        const savedWork = await AsyncStorage.getItem("workMinutes");
+        const savedBreak = await AsyncStorage.getItem("breakMinutes");
+        // Load focus mode setting
+        const savedFocus = await AsyncStorage.getItem("focusMode");
+        if (savedWork) {
+          const ms = Number(savedWork) * 60;
+          setWorkTime(ms);
+          // Only reset the timer if it's not currently running
+          if (!isRunningRef.current) setSeconds(ms);
+        }
+        if (savedBreak) {
+          setBreakTime(Number(savedBreak) * 60);
+        }
+        if (savedFocus) setFocusMode(savedFocus === "true");
+      }
+      loadTimes();
+    }, []),
+  );
+  // Keep isRunningRef in sync with isRunning state
+  useEffect(() => {
+    isRunningRef.current = isRunning;
+  }, [isRunning]);
+
+  // Pause timer when app goes to background, resume when coming back (only if focus mode is on)
+  useEffect(() => {
+    const subscription = AppState.addEventListener("change", (nextState) => {
+      if (focusMode) {
+        if (nextState === "background") {
+          // Remember if the timer was running before leaving
+          wasRunningRef.current = isRunningRef.current;
+          setIsRunning(false);
+        } else if (nextState === "active" && wasRunningRef.current) {
+          // Resume the timer if it was running before
+          setIsRunning(true);
+          wasRunningRef.current = false;
+        }
+      }
+    });
+    return () => subscription.remove();
+  }, [focusMode]);
 
   // Start fish animations when the app loads
   useEffect(() => {
@@ -108,14 +167,14 @@ export default function Index() {
   function reset() {
     setIsRunning(false);
     setisBreak(false);
-    setSeconds(WORK_TIME);
+    setSeconds(workTime);
   }
 
   // Skips the break and goes back to work mode immediately
   function skipBreak() {
     setisBreak(false); // returns to work mode
     setIsRunning(false); // pauses the timer so the user can start it whenever they want
-    setSeconds(WORK_TIME); // loads the 25 mins again
+    setSeconds(workTime); // loads the 25 mins again
   }
 
   // Plays a soft chime sound using the Web Audio API
@@ -242,6 +301,13 @@ export default function Index() {
       >
         {/* ── TIMER SECTION ── */}
         <View style={{ alignItems: "center", width: "100%", maxWidth: 400 }}>
+          {/* Settings button — top right corner */}
+          <TouchableOpacity
+            onPress={() => router.push("/settings" as any)}
+            style={{ alignSelf: "flex-end", marginBottom: 8 }}
+          >
+            <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
+          </TouchableOpacity>
           {/* Mode label + pomodoro count */}
           <View
             style={{
