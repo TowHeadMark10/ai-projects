@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Text,
   View,
@@ -7,12 +7,12 @@ import {
   ScrollView,
   Animated,
 } from "react-native";
-import { useRouter } from "expo-router";
+import { useRouter, useFocusEffect } from "expo-router";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
-// Total work time in seconds (25 min)
-const WORK_TIME = 25 * 60;
-// Total break time in seconds (5 min)
-const BREAK_TIME = 5 * 60;
+// Default times in seconds
+const DEFAULT_WORK = 25 * 60;
+const DEFAULT_BREAK = 5 * 60;
 // Available task categories
 const CATEGORIES = [
   { label: "Work", emoji: "💼" },
@@ -26,7 +26,11 @@ export default function Index() {
   // Hook to navigate between screens
   const router = useRouter();
   // Seconds remaining on the timer
-  const [seconds, setSeconds] = useState(WORK_TIME);
+  const [seconds, setSeconds] = useState(DEFAULT_WORK);
+  // Work time in seconds (can be changed in settings)
+  const [workTime, setWorkTime] = useState(DEFAULT_WORK);
+  // Break time in seconds (can be changed in settings)
+  const [breakTime, setBreakTime] = useState(DEFAULT_BREAK);
   // Whether the timer is currently running
   const [isRunning, setIsRunning] = useState(false);
   // Whether we are in work mode or break mode
@@ -78,7 +82,7 @@ export default function Index() {
               const nextisBreak = !prev;
               // If switching to break, if means a work session just ended - add 1
               if (nextisBreak) setPomodoroCount((c) => c + 1);
-              setSeconds(nextisBreak ? BREAK_TIME : WORK_TIME);
+              setSeconds(nextisBreak ? breakTime : workTime);
               return nextisBreak;
             });
             return 0;
@@ -92,6 +96,25 @@ export default function Index() {
     // Cleanup interval when component unmounts
     return () => clearInterval(IntervalRef.current!);
   }, [isRunning]);
+
+  // Reload work/break times every time the screen comes into focus
+  useFocusEffect(
+    useCallback(() => {
+      async function loadTimes() {
+        const savedWork = await AsyncStorage.getItem("workMinutes");
+        const savedBreak = await AsyncStorage.getItem("breakMinutes");
+        if (savedWork) {
+          const ms = Number(savedWork) * 60;
+          setWorkTime(ms);
+          setSeconds(ms);
+        }
+        if (savedBreak) {
+          setBreakTime(Number(savedBreak) * 60);
+        }
+      }
+      loadTimes();
+    }, []),
+  );
 
   // Start fish animations when the app loads
   useEffect(() => {
@@ -111,14 +134,14 @@ export default function Index() {
   function reset() {
     setIsRunning(false);
     setisBreak(false);
-    setSeconds(WORK_TIME);
+    setSeconds(workTime);
   }
 
   // Skips the break and goes back to work mode immediately
   function skipBreak() {
     setisBreak(false); // returns to work mode
     setIsRunning(false); // pauses the timer so the user can start it whenever they want
-    setSeconds(WORK_TIME); // loads the 25 mins again
+    setSeconds(workTime); // loads the 25 mins again
   }
 
   // Plays a soft chime sound using the Web Audio API
