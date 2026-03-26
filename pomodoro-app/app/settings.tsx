@@ -13,14 +13,19 @@ export default function Settings() {
   const [workMinutes, setWorkMinutes] = useState(DEFAULT_WORK);
   // Break time in minutes
   const [breakMinutes, setBreakMinutes] = useState(DEFAULT_BREAK);
+  //Whether focus mode is enabled
+  const [focusMode, setFocusMode] = useState(false);
 
   // Load saved values when the screen opens
   useEffect(() => {
     async function loadSettings() {
       const savedWork = await AsyncStorage.getItem("workMinutes");
       const savedBreak = await AsyncStorage.getItem("breakMinutes");
+      // AsyncStorage only stores strings, so "true"/"false" need to be converted back to boolean
+      const savedFocus = await AsyncStorage.getItem("focusMode");
       if (savedWork) setWorkMinutes(Number(savedWork));
       if (savedBreak) setBreakMinutes(Number(savedBreak));
+      if (savedFocus) setFocusMode(savedFocus === "true");
     }
     loadSettings();
   }, []);
@@ -29,6 +34,8 @@ export default function Settings() {
   async function saveAndGoBack() {
     await AsyncStorage.setItem("workMinutes", String(workMinutes));
     await AsyncStorage.setItem("breakMinutes", String(breakMinutes));
+    // Save focus mode as string since AsyncStorage only supports strings
+    await AsyncStorage.setItem("focusMode", String(focusMode));
     router.back();
   }
 
@@ -162,6 +169,57 @@ export default function Settings() {
               <Text style={{ color: "#fff", fontSize: 20 }}>+</Text>
             </TouchableOpacity>
           </View>
+        </View>
+
+        {/* Focus mode toggle */}
+        <View style={{ width: "100%", maxWidth: 400, marginBottom: 32 }}>
+          <Text
+            style={{
+              color: "#888",
+              fontSize: 11,
+              letterSpacing: 1,
+              marginBottom: 12,
+            }}
+          >
+            FOCUS MODE
+          </Text>
+          <TouchableOpacity
+            onPress={() => setFocusMode((f) => !f)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: "#1e1e30",
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "#2a2a4e",
+            }}
+          >
+            <Text style={{ color: "#e0e0e0", fontSize: 15 }}>
+              Pause timer when leaving app
+            </Text>
+            <View
+              style={{
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: focusMode ? "#e94560" : "#2a2a4e",
+                justifyContent: "center",
+                paddingHorizontal: 2,
+              }}
+            >
+              <View
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: "#fff",
+                  alignSelf: focusMode ? "flex-end" : "flex-start",
+                }}
+              />
+            </View>
+          </TouchableOpacity>
         </View>
 
         {/* Save button */}
