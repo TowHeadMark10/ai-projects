@@ -222,6 +222,18 @@ export default function Settings() {
           </TouchableOpacity>
         </View>
 
+        {/* Reset to default values */}
+        <TouchableOpacity
+          onPress={() => {
+            setWorkMinutes(DEFAULT_WORK);
+            setBreakMinutes(DEFAULT_BREAK);
+            setFocusMode(false);
+          }}
+          style={{ marginBottom: 16 }}
+        >
+          <Text style={{ color: "#888", fontSize: 13 }}>Reset to defaults</Text>
+        </TouchableOpacity>
+
         {/* Save button */}
         <TouchableOpacity
           onPress={saveAndGoBack}
