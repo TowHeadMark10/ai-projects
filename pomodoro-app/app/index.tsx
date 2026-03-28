@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // Default times in seconds
 const DEFAULT_WORK = 25 * 60;
@@ -268,7 +269,7 @@ export default function Index() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
       <ScrollView
         contentContainerStyle={{
           alignItems: "center",
@@ -279,46 +280,53 @@ export default function Index() {
       >
         {/* ── TIMER SECTION ── */}
         <View style={{ alignItems: "center", width: "100%", maxWidth: 400 }}>
-          {/* Settings button — top right corner */}
-          <TouchableOpacity
-            onPress={() => router.push("/settings" as any)}
-            style={{ alignSelf: "flex-end", marginBottom: 8 }}
-          >
-            <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
-          </TouchableOpacity>
-          {/* Mode label + pomodoro count */}
+          {/* Mode label + pomodoro count + settings button */}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: 12,
+              justifyContent: "center",
+              width: "100%",
               marginBottom: 8,
+              gap: 12,
             }}
           >
+            {/* Center group: FOCUS/BREAK badge and pomodoro count */}
             <View
-              style={{
-                backgroundColor: isBreak ? "#00ff8822" : "#e9456022",
-                paddingHorizontal: 14,
-                paddingVertical: 4,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: isBreak ? "#00ff88" : "#e94560",
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
             >
-              <Text
+              <View
                 style={{
-                  color: isBreak ? "#00ff88" : "#e94560",
-                  fontSize: 14,
-                  fontWeight: "bold",
-                  letterSpacing: 2,
+                  backgroundColor: isBreak ? "#00ff8822" : "#e9456022",
+                  paddingHorizontal: 14,
+                  paddingVertical: 4,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: isBreak ? "#00ff88" : "#e94560",
                 }}
               >
-                {isBreak ? "BREAK" : "FOCUS"}
+                <Text
+                  style={{
+                    color: isBreak ? "#00ff88" : "#e94560",
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    letterSpacing: 2,
+                  }}
+                >
+                  {isBreak ? "BREAK" : "FOCUS"}
+                </Text>
+              </View>
+              <Text style={{ color: "#555", fontSize: 16 }}>
+                🍅 {pomodoroCount}
               </Text>
             </View>
-            <Text style={{ color: "#555", fontSize: 16 }}>
-              🍅 {pomodoroCount}
-            </Text>
+            {/* Settings button on the right */}
+            <TouchableOpacity
+              onPress={() => router.push("/settings" as any)}
+              style={{ position: "absolute", right: 0 }}
+            >
+              <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Timer */}
@@ -688,6 +696,6 @@ export default function Index() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
