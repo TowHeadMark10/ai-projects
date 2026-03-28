@@ -308,7 +308,7 @@ export default function Index() {
               <Text
                 style={{
                   color: isBreak ? "#00ff88" : "#e94560",
-                  fontSize: 12,
+                  fontSize: 14,
                   fontWeight: "bold",
                   letterSpacing: 2,
                 }}
@@ -316,7 +316,7 @@ export default function Index() {
                 {isBreak ? "BREAK" : "FOCUS"}
               </Text>
             </View>
-            <Text style={{ color: "#555", fontSize: 13 }}>
+            <Text style={{ color: "#555", fontSize: 16 }}>
               🍅 {pomodoroCount}
             </Text>
           </View>
@@ -437,21 +437,23 @@ export default function Index() {
                 flex: 1,
                 backgroundColor: "#2a2a4e",
                 color: "#ffffff",
-                padding: 10,
+                padding: 14,
                 borderRadius: 8,
-                fontSize: 15,
+                fontSize: 16,
               }}
             />
             <TouchableOpacity
               onPress={addTask}
               style={{
                 backgroundColor: "#e94560",
-                padding: 10,
+                padding: 14,
                 borderRadius: 8,
                 justifyContent: "center",
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "bold" }}>Add</Text>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+                Add
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -513,14 +515,14 @@ export default function Index() {
               style={{
                 backgroundColor:
                   filterCategory === null ? "#e94560" : "#1e1e30",
-                paddingHorizontal: 12,
-                paddingVertical: 6,
+                paddingHorizontal: 16,
+                paddingVertical: 8,
                 borderRadius: 20,
                 borderWidth: 1,
                 borderColor: filterCategory === null ? "#e94560" : "#333",
               }}
             >
-              <Text style={{ color: "#fff", fontSize: 11 }}>All</Text>
+              <Text style={{ color: "#fff", fontSize: 13 }}>All</Text>
             </TouchableOpacity>
             {CATEGORIES.map((cat) => (
               <TouchableOpacity
@@ -529,15 +531,15 @@ export default function Index() {
                 style={{
                   backgroundColor:
                     filterCategory === cat.label ? "#e94560" : "#1e1e30",
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
                   borderRadius: 20,
                   borderWidth: 1,
                   borderColor:
                     filterCategory === cat.label ? "#e94560" : "#333",
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 11 }}>
+                <Text style={{ color: "#fff", fontSize: 13 }}>
                   {cat.emoji} {cat.label}
                 </Text>
               </TouchableOpacity>
@@ -570,18 +572,16 @@ export default function Index() {
                     // Edit mode — show input and save button
                     <>
                       <View style={{ flex: 1 }}>
-                        <input
+                        <TextInput
                           value={editInput}
-                          onChange={(e) => setEditInput(e.target.value)}
+                          onChangeText={(text) => setEditInput(text)}
                           style={{
-                            width: "100%",
+                            flex: 1,
                             backgroundColor: "#1a1a2e",
                             color: "#fff",
                             padding: 6,
                             borderRadius: 6,
-                            border: "none",
                             fontSize: 16,
-                            outline: "none",
                           }}
                         />
                         {/* Category selector in edit mode */}
@@ -602,11 +602,12 @@ export default function Index() {
                                   selectedCategory === cat.label
                                     ? "#e94560"
                                     : "#2a2a4e",
-                                padding: 4,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
                                 borderRadius: 8,
                               }}
                             >
-                              <Text style={{ color: "#fff", fontSize: 10 }}>
+                              <Text style={{ color: "#fff", fontSize: 13 }}>
                                 {cat.emoji} {cat.label}
                               </Text>
                             </TouchableOpacity>
@@ -617,13 +618,13 @@ export default function Index() {
                         onPress={saveEdit}
                         style={{
                           backgroundColor: "#0a3a2a",
-                          paddingHorizontal: 10,
-                          paddingVertical: 4,
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
                           borderRadius: 6,
                           marginLeft: 8,
                         }}
                       >
-                        <Text style={{ color: "#00ff88", fontSize: 12 }}>
+                        <Text style={{ color: "#00ff88", fontSize: 14 }}>
                           Save
                         </Text>
                       </TouchableOpacity>
@@ -641,7 +642,7 @@ export default function Index() {
                             textDecorationLine: task.done
                               ? "line-through"
                               : "none",
-                            fontSize: 15,
+                            fontSize: 17,
                           }}
                         >
                           {task.done ? "✓ " : "○ "}
@@ -657,12 +658,12 @@ export default function Index() {
                           onPress={() => startEdit(index)}
                           style={{
                             backgroundColor: "#2a2a5e",
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
                             borderRadius: 6,
                           }}
                         >
-                          <Text style={{ color: "#aaaaff", fontSize: 12 }}>
+                          <Text style={{ color: "#aaaaff", fontSize: 14 }}>
                             Edit
                           </Text>
                         </TouchableOpacity>
@@ -670,12 +671,12 @@ export default function Index() {
                           onPress={() => deleteTask(index)}
                           style={{
                             backgroundColor: "#3a1a24",
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
                             borderRadius: 6,
                           }}
                         >
-                          <Text style={{ color: "#e94560", fontSize: 12 }}>
+                          <Text style={{ color: "#e94560", fontSize: 14 }}>
                             Delete
                           </Text>
                         </TouchableOpacity>
