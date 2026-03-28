@@ -475,6 +475,7 @@ export default function Index() {
                 style={{
                   flexDirection: "row",
                   flexWrap: "wrap",
+                  justifyContent: "center",
                   gap: 8,
                   marginTop: 8,
                 }}
@@ -486,11 +487,12 @@ export default function Index() {
                     style={{
                       backgroundColor:
                         selectedCategory === cat.label ? "#e94560" : "#2a2a4e",
-                      padding: 6,
-                      borderRadius: 12,
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 20,
                     }}
                   >
-                    <Text style={{ color: "#fff", fontSize: 11 }}>
+                    <Text style={{ color: "#fff", fontSize: 13 }}>
                       {cat.emoji} {cat.label}
                     </Text>
                   </TouchableOpacity>
@@ -502,8 +504,8 @@ export default function Index() {
           {/* Category filter buttons */}
           <Text
             style={{
-              color: "#555",
-              fontSize: 10,
+              color: "#888",
+              fontSize: 11,
               marginTop: 16,
               letterSpacing: 1,
             }}
@@ -516,6 +518,7 @@ export default function Index() {
               flexWrap: "wrap",
               gap: 6,
               marginTop: 8,
+              justifyContent: "center",
             }}
           >
             <TouchableOpacity
@@ -642,8 +645,40 @@ export default function Index() {
                     <>
                       <TouchableOpacity
                         onPress={() => toggleTask(index)}
-                        style={{ flex: 1 }}
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
                       >
+                        {/* Checkbox */}
+                        <View
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 6,
+                            borderWidth: 2,
+                            borderColor: task.done ? "#e94560" : "#555",
+                            backgroundColor: task.done
+                              ? "#e94560"
+                              : "transparent",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {task.done && (
+                            <Text
+                              style={{
+                                color: "#fff",
+                                fontSize: 14,
+                                fontWeight: "bold",
+                              }}
+                            >
+                              ✓
+                            </Text>
+                          )}
+                        </View>
                         <Text
                           style={{
                             color: task.done ? "#555" : "#e0e0e0",
@@ -651,9 +686,9 @@ export default function Index() {
                               ? "line-through"
                               : "none",
                             fontSize: 17,
+                            flex: 1,
                           }}
                         >
-                          {task.done ? "✓ " : "○ "}
                           {
                             CATEGORIES.find((c) => c.label === task.category)
                               ?.emoji
