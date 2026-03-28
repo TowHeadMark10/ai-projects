@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // Default times in minutes
 const DEFAULT_WORK = 25;
@@ -40,11 +41,12 @@ export default function Settings() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
       <ScrollView
         contentContainerStyle={{
           alignItems: "center",
-          paddingVertical: 48,
+          paddingTop: 64,
+          paddingBottom: 48,
           paddingHorizontal: 24,
         }}
       >
@@ -229,9 +231,18 @@ export default function Settings() {
             setBreakMinutes(DEFAULT_BREAK);
             setFocusMode(false);
           }}
-          style={{ marginBottom: 16 }}
+          style={{
+            width: "100%",
+            maxWidth: 400,
+            paddingVertical: 14,
+            borderRadius: 12,
+            borderWidth: 1,
+            borderColor: "#333",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
         >
-          <Text style={{ color: "#888", fontSize: 13 }}>Reset to defaults</Text>
+          <Text style={{ color: "#aaa", fontSize: 16 }}>Reset to defaults</Text>
         </TouchableOpacity>
 
         {/* Save button */}
@@ -249,6 +260,6 @@ export default function Settings() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }

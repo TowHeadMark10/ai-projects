@@ -1,3 +1,4 @@
+import { Audio } from "expo-av";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Text,
@@ -10,6 +11,7 @@ import {
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SafeAreaView } from "react-native-safe-area-context";
 
 // Default times in seconds
 const DEFAULT_WORK = 25 * 60;
@@ -177,49 +179,26 @@ export default function Index() {
     setSeconds(workTime); // loads the 25 mins again
   }
 
-  // Plays a soft chime sound using the Web Audio API
-  function playChime() {
-    const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(528, ctx.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(
-      440,
-      ctx.currentTime + 0.8,
+  // Plays a soft chime sound when work session ends
+  async function playChime() {
+    const { sound } = await Audio.Sound.createAsync(
+      require("../assets/sounds/chime.mp3"),
+      { shouldPlay: true },
     );
-
-    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 1.2);
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
+    });
   }
 
-  // Plays a soft alarm sound to signal break is over
-  function playAlarm() {
-    const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.type = "square";
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-    oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.2);
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.4);
-    oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.6);
-
-    gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.8);
+  // Plays an alarm sound when break session ends
+  async function playAlarm() {
+    const { sound } = await Audio.Sound.createAsync(
+      require("../assets/sounds/alarm.mp3"),
+      { shouldPlay: true },
+    );
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
+    });
   }
 
   // Adds a new task to the list
@@ -290,7 +269,7 @@ export default function Index() {
   }
 
   return (
-    <View style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
       <ScrollView
         contentContainerStyle={{
           alignItems: "center",
@@ -301,46 +280,53 @@ export default function Index() {
       >
         {/* ── TIMER SECTION ── */}
         <View style={{ alignItems: "center", width: "100%", maxWidth: 400 }}>
-          {/* Settings button — top right corner */}
-          <TouchableOpacity
-            onPress={() => router.push("/settings" as any)}
-            style={{ alignSelf: "flex-end", marginBottom: 8 }}
-          >
-            <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
-          </TouchableOpacity>
-          {/* Mode label + pomodoro count */}
+          {/* Mode label + pomodoro count + settings button */}
           <View
             style={{
               flexDirection: "row",
               alignItems: "center",
-              gap: 12,
+              justifyContent: "center",
+              width: "100%",
               marginBottom: 8,
+              gap: 12,
             }}
           >
+            {/* Center group: FOCUS/BREAK badge and pomodoro count */}
             <View
-              style={{
-                backgroundColor: isBreak ? "#00ff8822" : "#e9456022",
-                paddingHorizontal: 14,
-                paddingVertical: 4,
-                borderRadius: 20,
-                borderWidth: 1,
-                borderColor: isBreak ? "#00ff88" : "#e94560",
-              }}
+              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
             >
-              <Text
+              <View
                 style={{
-                  color: isBreak ? "#00ff88" : "#e94560",
-                  fontSize: 12,
-                  fontWeight: "bold",
-                  letterSpacing: 2,
+                  backgroundColor: isBreak ? "#00ff8822" : "#e9456022",
+                  paddingHorizontal: 14,
+                  paddingVertical: 4,
+                  borderRadius: 20,
+                  borderWidth: 1,
+                  borderColor: isBreak ? "#00ff88" : "#e94560",
                 }}
               >
-                {isBreak ? "BREAK" : "FOCUS"}
+                <Text
+                  style={{
+                    color: isBreak ? "#00ff88" : "#e94560",
+                    fontSize: 14,
+                    fontWeight: "bold",
+                    letterSpacing: 2,
+                  }}
+                >
+                  {isBreak ? "BREAK" : "FOCUS"}
+                </Text>
+              </View>
+              <Text style={{ color: "#555", fontSize: 16 }}>
+                🍅 {pomodoroCount}
               </Text>
             </View>
-            <Text style={{ color: "#555", fontSize: 13 }}>
-              🍅 {pomodoroCount}
-            </Text>
+            {/* Settings button on the right */}
+            <TouchableOpacity
+              onPress={() => router.push("/settings" as any)}
+              style={{ position: "absolute", right: 0 }}
+            >
+              <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
+            </TouchableOpacity>
           </View>
 
           {/* Timer */}
@@ -451,31 +437,31 @@ export default function Index() {
         <View style={{ width: "100%", maxWidth: 400 }}>
           {/* Task input */}
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <input
+            <TextInput
               value={taskInput}
-              onChange={(e) => setTaskInput(e.target.value)}
+              onChangeText={(text) => setTaskInput(text)}
               placeholder="Add a task..."
               style={{
                 flex: 1,
                 backgroundColor: "#2a2a4e",
                 color: "#ffffff",
-                padding: 10,
+                padding: 14,
                 borderRadius: 8,
-                border: "none",
-                fontSize: 15,
-                outline: "none",
+                fontSize: 16,
               }}
             />
             <TouchableOpacity
               onPress={addTask}
               style={{
                 backgroundColor: "#e94560",
-                padding: 10,
+                padding: 14,
                 borderRadius: 8,
                 justifyContent: "center",
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "bold" }}>Add</Text>
+              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+                Add
+              </Text>
             </TouchableOpacity>
           </View>
 
@@ -489,6 +475,7 @@ export default function Index() {
                 style={{
                   flexDirection: "row",
                   flexWrap: "wrap",
+                  justifyContent: "center",
                   gap: 8,
                   marginTop: 8,
                 }}
@@ -500,11 +487,12 @@ export default function Index() {
                     style={{
                       backgroundColor:
                         selectedCategory === cat.label ? "#e94560" : "#2a2a4e",
-                      padding: 6,
-                      borderRadius: 12,
+                      paddingHorizontal: 16,
+                      paddingVertical: 8,
+                      borderRadius: 20,
                     }}
                   >
-                    <Text style={{ color: "#fff", fontSize: 11 }}>
+                    <Text style={{ color: "#fff", fontSize: 13 }}>
                       {cat.emoji} {cat.label}
                     </Text>
                   </TouchableOpacity>
@@ -516,8 +504,8 @@ export default function Index() {
           {/* Category filter buttons */}
           <Text
             style={{
-              color: "#555",
-              fontSize: 10,
+              color: "#888",
+              fontSize: 11,
               marginTop: 16,
               letterSpacing: 1,
             }}
@@ -530,6 +518,7 @@ export default function Index() {
               flexWrap: "wrap",
               gap: 6,
               marginTop: 8,
+              justifyContent: "center",
             }}
           >
             <TouchableOpacity
@@ -537,14 +526,14 @@ export default function Index() {
               style={{
                 backgroundColor:
                   filterCategory === null ? "#e94560" : "#1e1e30",
-                paddingHorizontal: 12,
-                paddingVertical: 6,
+                paddingHorizontal: 16,
+                paddingVertical: 8,
                 borderRadius: 20,
                 borderWidth: 1,
                 borderColor: filterCategory === null ? "#e94560" : "#333",
               }}
             >
-              <Text style={{ color: "#fff", fontSize: 11 }}>All</Text>
+              <Text style={{ color: "#fff", fontSize: 13 }}>All</Text>
             </TouchableOpacity>
             {CATEGORIES.map((cat) => (
               <TouchableOpacity
@@ -553,15 +542,15 @@ export default function Index() {
                 style={{
                   backgroundColor:
                     filterCategory === cat.label ? "#e94560" : "#1e1e30",
-                  paddingHorizontal: 12,
-                  paddingVertical: 6,
+                  paddingHorizontal: 16,
+                  paddingVertical: 8,
                   borderRadius: 20,
                   borderWidth: 1,
                   borderColor:
                     filterCategory === cat.label ? "#e94560" : "#333",
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 11 }}>
+                <Text style={{ color: "#fff", fontSize: 13 }}>
                   {cat.emoji} {cat.label}
                 </Text>
               </TouchableOpacity>
@@ -594,18 +583,16 @@ export default function Index() {
                     // Edit mode — show input and save button
                     <>
                       <View style={{ flex: 1 }}>
-                        <input
+                        <TextInput
                           value={editInput}
-                          onChange={(e) => setEditInput(e.target.value)}
+                          onChangeText={(text) => setEditInput(text)}
                           style={{
-                            width: "100%",
+                            flex: 1,
                             backgroundColor: "#1a1a2e",
                             color: "#fff",
                             padding: 6,
                             borderRadius: 6,
-                            border: "none",
                             fontSize: 16,
-                            outline: "none",
                           }}
                         />
                         {/* Category selector in edit mode */}
@@ -626,11 +613,12 @@ export default function Index() {
                                   selectedCategory === cat.label
                                     ? "#e94560"
                                     : "#2a2a4e",
-                                padding: 4,
+                                paddingHorizontal: 12,
+                                paddingVertical: 8,
                                 borderRadius: 8,
                               }}
                             >
-                              <Text style={{ color: "#fff", fontSize: 10 }}>
+                              <Text style={{ color: "#fff", fontSize: 13 }}>
                                 {cat.emoji} {cat.label}
                               </Text>
                             </TouchableOpacity>
@@ -641,13 +629,13 @@ export default function Index() {
                         onPress={saveEdit}
                         style={{
                           backgroundColor: "#0a3a2a",
-                          paddingHorizontal: 10,
-                          paddingVertical: 4,
+                          paddingHorizontal: 14,
+                          paddingVertical: 8,
                           borderRadius: 6,
                           marginLeft: 8,
                         }}
                       >
-                        <Text style={{ color: "#00ff88", fontSize: 12 }}>
+                        <Text style={{ color: "#00ff88", fontSize: 14 }}>
                           Save
                         </Text>
                       </TouchableOpacity>
@@ -657,18 +645,50 @@ export default function Index() {
                     <>
                       <TouchableOpacity
                         onPress={() => toggleTask(index)}
-                        style={{ flex: 1 }}
+                        style={{
+                          flex: 1,
+                          flexDirection: "row",
+                          alignItems: "center",
+                          gap: 12,
+                        }}
                       >
+                        {/* Checkbox */}
+                        <View
+                          style={{
+                            width: 24,
+                            height: 24,
+                            borderRadius: 6,
+                            borderWidth: 2,
+                            borderColor: task.done ? "#e94560" : "#555",
+                            backgroundColor: task.done
+                              ? "#e94560"
+                              : "transparent",
+                            alignItems: "center",
+                            justifyContent: "center",
+                          }}
+                        >
+                          {task.done && (
+                            <Text
+                              style={{
+                                color: "#fff",
+                                fontSize: 14,
+                                fontWeight: "bold",
+                              }}
+                            >
+                              ✓
+                            </Text>
+                          )}
+                        </View>
                         <Text
                           style={{
                             color: task.done ? "#555" : "#e0e0e0",
                             textDecorationLine: task.done
                               ? "line-through"
                               : "none",
-                            fontSize: 15,
+                            fontSize: 17,
+                            flex: 1,
                           }}
                         >
-                          {task.done ? "✓ " : "○ "}
                           {
                             CATEGORIES.find((c) => c.label === task.category)
                               ?.emoji
@@ -681,12 +701,12 @@ export default function Index() {
                           onPress={() => startEdit(index)}
                           style={{
                             backgroundColor: "#2a2a5e",
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
                             borderRadius: 6,
                           }}
                         >
-                          <Text style={{ color: "#aaaaff", fontSize: 12 }}>
+                          <Text style={{ color: "#aaaaff", fontSize: 14 }}>
                             Edit
                           </Text>
                         </TouchableOpacity>
@@ -694,12 +714,12 @@ export default function Index() {
                           onPress={() => deleteTask(index)}
                           style={{
                             backgroundColor: "#3a1a24",
-                            paddingHorizontal: 10,
-                            paddingVertical: 4,
+                            paddingHorizontal: 14,
+                            paddingVertical: 8,
                             borderRadius: 6,
                           }}
                         >
-                          <Text style={{ color: "#e94560", fontSize: 12 }}>
+                          <Text style={{ color: "#e94560", fontSize: 14 }}>
                             Delete
                           </Text>
                         </TouchableOpacity>
@@ -711,6 +731,6 @@ export default function Index() {
           </View>
         </View>
       </ScrollView>
-    </View>
+    </SafeAreaView>
   );
 }
