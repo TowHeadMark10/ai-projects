@@ -1,3 +1,4 @@
+import { Audio } from "expo-av";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Text,
@@ -177,49 +178,26 @@ export default function Index() {
     setSeconds(workTime); // loads the 25 mins again
   }
 
-  // Plays a soft chime sound using the Web Audio API
-  function playChime() {
-    const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.type = "sine";
-    oscillator.frequency.setValueAtTime(528, ctx.currentTime);
-    oscillator.frequency.exponentialRampToValueAtTime(
-      440,
-      ctx.currentTime + 0.8,
+  // Plays a soft chime sound when work session ends
+  async function playChime() {
+    const { sound } = await Audio.Sound.createAsync(
+      require("../assets/sounds/chime.mp3"),
+      { shouldPlay: true },
     );
-
-    gainNode.gain.setValueAtTime(0.3, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 1.2);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 1.2);
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
+    });
   }
 
-  // Plays a soft alarm sound to signal break is over
-  function playAlarm() {
-    const ctx = new AudioContext();
-    const oscillator = ctx.createOscillator();
-    const gainNode = ctx.createGain();
-
-    oscillator.connect(gainNode);
-    gainNode.connect(ctx.destination);
-
-    oscillator.type = "square";
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime);
-    oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.2);
-    oscillator.frequency.setValueAtTime(880, ctx.currentTime + 0.4);
-    oscillator.frequency.setValueAtTime(660, ctx.currentTime + 0.6);
-
-    gainNode.gain.setValueAtTime(0.15, ctx.currentTime);
-    gainNode.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + 0.8);
-
-    oscillator.start(ctx.currentTime);
-    oscillator.stop(ctx.currentTime + 0.8);
+  // Plays an alarm sound when break session ends
+  async function playAlarm() {
+    const { sound } = await Audio.Sound.createAsync(
+      require("../assets/sounds/alarm.mp3"),
+      { shouldPlay: true },
+    );
+    sound.setOnPlaybackStatusUpdate((status) => {
+      if (status.isLoaded && status.didJustFinish) sound.unloadAsync();
+    });
   }
 
   // Adds a new task to the list
@@ -451,9 +429,9 @@ export default function Index() {
         <View style={{ width: "100%", maxWidth: 400 }}>
           {/* Task input */}
           <View style={{ flexDirection: "row", gap: 8 }}>
-            <input
+            <TextInput
               value={taskInput}
-              onChange={(e) => setTaskInput(e.target.value)}
+              onChangeText={(text) => setTaskInput(text)}
               placeholder="Add a task..."
               style={{
                 flex: 1,
@@ -461,9 +439,7 @@ export default function Index() {
                 color: "#ffffff",
                 padding: 10,
                 borderRadius: 8,
-                border: "none",
                 fontSize: 15,
-                outline: "none",
               }}
             />
             <TouchableOpacity
