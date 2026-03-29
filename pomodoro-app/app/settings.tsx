@@ -14,8 +14,10 @@ export default function Settings() {
   const [workMinutes, setWorkMinutes] = useState(DEFAULT_WORK);
   // Break time in minutes
   const [breakMinutes, setBreakMinutes] = useState(DEFAULT_BREAK);
-  //Whether focus mode is enabled
+  // Whether focus mode is enabled
   const [focusMode, setFocusMode] = useState(false);
+  // Whether sound is muted
+  const [muted, setMuted] = useState(false);
 
   // Load saved values when the screen opens
   useEffect(() => {
@@ -24,6 +26,9 @@ export default function Settings() {
       const savedBreak = await AsyncStorage.getItem("breakMinutes");
       // AsyncStorage only stores strings, so "true"/"false" need to be converted back to boolean
       const savedFocus = await AsyncStorage.getItem("focusMode");
+      const savedMuted = await AsyncStorage.getItem("muted");
+      // Convert string back to boolean
+      if (savedMuted) setMuted(savedMuted === "true");
       if (savedWork) setWorkMinutes(Number(savedWork));
       if (savedBreak) setBreakMinutes(Number(savedBreak));
       if (savedFocus) setFocusMode(savedFocus === "true");
@@ -37,6 +42,8 @@ export default function Settings() {
     await AsyncStorage.setItem("breakMinutes", String(breakMinutes));
     // Save focus mode as string since AsyncStorage only supports strings
     await AsyncStorage.setItem("focusMode", String(focusMode));
+    // Save mute setting as string
+    await AsyncStorage.setItem("muted", String(muted));
     router.back();
   }
 
@@ -88,7 +95,7 @@ export default function Settings() {
             <TouchableOpacity
               onPress={() => setWorkMinutes((m) => Math.max(1, m - 1))}
               style={{
-                backgroundColor: "#2a2a5e",
+                backgroundColor: "#0077b6",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -104,7 +111,7 @@ export default function Settings() {
             <TouchableOpacity
               onPress={() => setWorkMinutes((m) => Math.min(60, m + 1))}
               style={{
-                backgroundColor: "#2a2a5e",
+                backgroundColor: "#0077b6",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -144,7 +151,7 @@ export default function Settings() {
             <TouchableOpacity
               onPress={() => setBreakMinutes((m) => Math.max(1, m - 1))}
               style={{
-                backgroundColor: "#2a2a5e",
+                backgroundColor: "#0077b6",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -160,7 +167,7 @@ export default function Settings() {
             <TouchableOpacity
               onPress={() => setBreakMinutes((m) => Math.min(30, m + 1))}
               style={{
-                backgroundColor: "#2a2a5e",
+                backgroundColor: "#0077b6",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -206,7 +213,7 @@ export default function Settings() {
                 width: 44,
                 height: 24,
                 borderRadius: 12,
-                backgroundColor: focusMode ? "#e94560" : "#2a2a4e",
+                backgroundColor: focusMode ? "#0077b6" : "#2a2a4e",
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -224,6 +231,63 @@ export default function Settings() {
           </TouchableOpacity>
         </View>
 
+        {/* Mute toggle */}
+        <View
+          style={{
+            width: "100%",
+            maxWidth: 400,
+            marginBottom: 32,
+          }}
+        >
+          <Text
+            style={{
+              color: "#888",
+              fontSize: 11,
+              letterSpacing: 1,
+              marginBottom: 12,
+            }}
+          >
+            SOUND
+          </Text>
+          <TouchableOpacity
+            onPress={() => setMuted((m) => !m)}
+            style={{
+              flexDirection: "row",
+              alignItems: "center",
+              justifyContent: "space-between",
+              backgroundColor: "#1e1e30",
+              padding: 16,
+              borderRadius: 12,
+              borderWidth: 1,
+              borderColor: "#2a2a4e",
+            }}
+          >
+            <Text style={{ color: "#e0e0e0", fontSize: 15 }}>
+              Mute timer sounds
+            </Text>
+            <View
+              style={{
+                width: 44,
+                height: 24,
+                borderRadius: 12,
+                backgroundColor: muted ? "#0077b6" : "#2a2a4e",
+                justifyContent: "center",
+                paddingHorizontal: 2,
+              }}
+            >
+              <View
+                style={{
+                  width: 20,
+                  height: 20,
+                  borderRadius: 10,
+                  backgroundColor: "#fff",
+                  alignSelf: muted ? "flex-end" : "flex-start",
+                }}
+              />
+            </View>
+          </TouchableOpacity>
+        </View>
+
         {/* Reset to default values */}
         <TouchableOpacity
           onPress={() => {
@@ -235,24 +299,29 @@ export default function Settings() {
             width: "100%",
             maxWidth: 400,
             paddingVertical: 14,
-            borderRadius: 12,
+            borderRadius: 50,
             borderWidth: 1,
-            borderColor: "#333",
+            borderColor: "#0077b6",
             alignItems: "center",
             marginBottom: 16,
           }}
         >
-          <Text style={{ color: "#aaa", fontSize: 16 }}>Reset to defaults</Text>
+          <Text style={{ color: "#00b4d8", fontSize: 16 }}>
+            Reset to defaults
+          </Text>
         </TouchableOpacity>
 
         {/* Save button */}
         <TouchableOpacity
           onPress={saveAndGoBack}
           style={{
-            backgroundColor: "#e94560",
+            backgroundColor: "#0077b6",
             paddingVertical: 14,
             paddingHorizontal: 48,
             borderRadius: 50,
+            width: "100%",
+            maxWidth: 400,
+            alignItems: "center",
           }}
         >
           <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>

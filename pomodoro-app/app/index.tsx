@@ -18,11 +18,11 @@ const DEFAULT_WORK = 25 * 60;
 const DEFAULT_BREAK = 5 * 60;
 // Available task categories
 const CATEGORIES = [
-  { label: "Work", emoji: "💼" },
-  { label: "Personal", emoji: "🙋" },
-  { label: "Home", emoji: "🏠" },
-  { label: "Health", emoji: "💪" },
-  { label: "Learning", emoji: "📚" },
+  { label: "Work", emoji: "💼", color: "#0077b6" },
+  { label: "Personal", emoji: "🙋", color: "#7b2d8b" },
+  { label: "Home", emoji: "🏠", color: "#e07b39" },
+  { label: "Health", emoji: "💪", color: "#2d9e5f" },
+  { label: "Learning", emoji: "📚", color: "#c9a227" },
 ];
 
 export default function Index() {
@@ -70,6 +70,8 @@ export default function Index() {
   const fish3Scale = useRef(new Animated.Value(1)).current;
   // Whether focus mode is enabled (pauses timer when leaving app)
   const [focusMode, setFocusMode] = useState(false);
+  // Whether timer sounds are muted
+  const [muted, setMuted] = useState(false);
 
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
@@ -83,9 +85,10 @@ export default function Index() {
             setisBreak((prev) => {
               // Play different sounds for work end and break end
               if (prev) {
-                playAlarm();
+                // Play different sounds for work end and break end
+                if (!muted) playAlarm();
               } else {
-                playChime();
+                if (!muted) playChime();
               }
               // If we were on work, switch to break and vice versa
               const nextisBreak = !prev;
@@ -114,6 +117,9 @@ export default function Index() {
         const savedBreak = await AsyncStorage.getItem("breakMinutes");
         // Load focus mode setting
         const savedFocus = await AsyncStorage.getItem("focusMode");
+        const savedMuted = await AsyncStorage.getItem("muted");
+        // Convert string back to boolean
+        if (savedMuted) setMuted(savedMuted === "true");
         if (savedWork) {
           const ms = Number(savedWork) * 60;
           setWorkTime(ms);
@@ -204,11 +210,9 @@ export default function Index() {
   // Adds a new task to the list
   function addTask() {
     if (!taskInput.trim()) return;
-    // New tasks start as not done
-    setTasks([
-      ...tasks,
-      { title: taskInput.trim(), done: false, category: selectedCategory },
-    ]);
+    // Use the active filter as the category, or "Work" if no filter is selected
+    const category = filterCategory ?? "Work";
+    setTasks([...tasks, { title: taskInput.trim(), done: false, category }]);
     setTaskInput("");
   }
   //Removes a task by its index
@@ -297,17 +301,17 @@ export default function Index() {
             >
               <View
                 style={{
-                  backgroundColor: isBreak ? "#00ff8822" : "#e9456022",
+                  backgroundColor: isBreak ? "#90e0ef22" : "#00b4d822",
+                  borderColor: isBreak ? "#90e0ef" : "#00b4d8",
                   paddingHorizontal: 14,
                   paddingVertical: 4,
                   borderRadius: 20,
                   borderWidth: 1,
-                  borderColor: isBreak ? "#00ff88" : "#e94560",
                 }}
               >
                 <Text
                   style={{
-                    color: isBreak ? "#00ff88" : "#e94560",
+                    color: isBreak ? "#90e0ef" : "#00b4d8",
                     fontSize: 14,
                     fontWeight: "bold",
                     letterSpacing: 2,
@@ -344,8 +348,21 @@ export default function Index() {
 
           {/* Skip break */}
           {isBreak && (
-            <TouchableOpacity onPress={skipBreak} style={{ marginBottom: 8 }}>
-              <Text style={{ color: "#6666aa", fontSize: 13 }}>
+            <TouchableOpacity
+              onPress={skipBreak}
+              style={{
+                backgroundColor: "#1e1e30",
+                paddingHorizontal: 20,
+                paddingVertical: 10,
+                borderRadius: 50,
+                borderWidth: 1,
+                borderColor: "#00b4d8",
+                marginBottom: 8,
+              }}
+            >
+              <Text
+                style={{ color: "#00b4d8", fontSize: 14, fontWeight: "bold" }}
+              >
                 Skip break →
               </Text>
             </TouchableOpacity>
@@ -357,7 +374,7 @@ export default function Index() {
             <TouchableOpacity
               onPress={() => setIsRunning(!isRunning)}
               style={{
-                backgroundColor: isRunning ? "#333" : "#e94560",
+                backgroundColor: isRunning ? "#333" : "#0077b6",
                 paddingVertical: 14,
                 paddingHorizontal: 40,
                 borderRadius: 50,
@@ -441,65 +458,40 @@ export default function Index() {
               value={taskInput}
               onChangeText={(text) => setTaskInput(text)}
               placeholder="Add a task..."
+              placeholderTextColor="#aaa"
               style={{
                 flex: 1,
                 backgroundColor: "#2a2a4e",
                 color: "#ffffff",
-                padding: 14,
-                borderRadius: 8,
-                fontSize: 16,
+                padding: 16,
+                borderRadius: 12,
+                fontSize: 18,
+                height: 52,
               }}
             />
             <TouchableOpacity
               onPress={addTask}
               style={{
-                backgroundColor: "#e94560",
-                padding: 14,
-                borderRadius: 8,
+                backgroundColor: "#0077b6",
+                paddingHorizontal: 20,
+                borderRadius: 50,
                 justifyContent: "center",
+                height: 52,
+                width: 100,
               }}
             >
-              <Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
+              <Text
+                style={{
+                  color: "#fff",
+                  fontWeight: "bold",
+                  fontSize: 16,
+                  textAlign: "center",
+                }}
+              >
                 Add
               </Text>
             </TouchableOpacity>
           </View>
-
-          {/* Category selector - only shows when typing */}
-          {taskInput.length > 0 && (
-            <>
-              <Text style={{ color: "#888", fontSize: 11, marginTop: 8 }}>
-                CATEGORY
-              </Text>
-              <View
-                style={{
-                  flexDirection: "row",
-                  flexWrap: "wrap",
-                  justifyContent: "center",
-                  gap: 8,
-                  marginTop: 8,
-                }}
-              >
-                {CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.label}
-                    onPress={() => setSelectedCategory(cat.label)}
-                    style={{
-                      backgroundColor:
-                        selectedCategory === cat.label ? "#e94560" : "#2a2a4e",
-                      paddingHorizontal: 16,
-                      paddingVertical: 8,
-                      borderRadius: 20,
-                    }}
-                  >
-                    <Text style={{ color: "#fff", fontSize: 13 }}>
-                      {cat.emoji} {cat.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
-              </View>
-            </>
-          )}
 
           {/* Category filter buttons */}
           <Text
@@ -525,15 +517,15 @@ export default function Index() {
               onPress={() => setFilterCategory(null)}
               style={{
                 backgroundColor:
-                  filterCategory === null ? "#e94560" : "#1e1e30",
-                paddingHorizontal: 16,
-                paddingVertical: 8,
-                borderRadius: 20,
+                  filterCategory === null ? "#0077b6" : "#1e1e30",
+                paddingHorizontal: 18,
+                paddingVertical: 12,
+                borderRadius: 22,
                 borderWidth: 1,
-                borderColor: filterCategory === null ? "#e94560" : "#333",
+                borderColor: filterCategory === null ? "#0077b6" : "#333",
               }}
             >
-              <Text style={{ color: "#fff", fontSize: 13 }}>All</Text>
+              <Text style={{ color: "#fff", fontSize: 15 }}>All</Text>
             </TouchableOpacity>
             {CATEGORIES.map((cat) => (
               <TouchableOpacity
@@ -541,16 +533,16 @@ export default function Index() {
                 onPress={() => setFilterCategory(cat.label)}
                 style={{
                   backgroundColor:
-                    filterCategory === cat.label ? "#e94560" : "#1e1e30",
-                  paddingHorizontal: 16,
-                  paddingVertical: 8,
-                  borderRadius: 20,
+                    filterCategory === cat.label ? "#0077b6" : "#1e1e30",
+                  paddingHorizontal: 18,
+                  paddingVertical: 12,
+                  borderRadius: 22,
                   borderWidth: 1,
                   borderColor:
-                    filterCategory === cat.label ? "#e94560" : "#333",
+                    filterCategory === cat.label ? "#0077b6" : "#333",
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 13 }}>
+                <Text style={{ color: "#fff", fontSize: 15 }}>
                   {cat.emoji} {cat.label}
                 </Text>
               </TouchableOpacity>
@@ -560,11 +552,12 @@ export default function Index() {
           {/* Task list */}
           <View style={{ marginTop: 16 }}>
             {tasks
+              .map((task, originalIndex) => ({ task, originalIndex }))
               .filter(
-                (task) =>
+                ({ task }) =>
                   filterCategory === null || task.category === filterCategory,
               )
-              .map((task, index) => (
+              .map(({ task, originalIndex: index }) => (
                 <View
                   key={index}
                   style={{
@@ -572,9 +565,9 @@ export default function Index() {
                     justifyContent: "space-between",
                     alignItems: "center",
                     backgroundColor: "#1e1e30",
-                    padding: 14,
+                    padding: 18,
                     borderRadius: 12,
-                    marginBottom: 8,
+                    marginBottom: 10,
                     borderWidth: 1,
                     borderColor: "#2a2a4e",
                   }}
@@ -586,22 +579,25 @@ export default function Index() {
                         <TextInput
                           value={editInput}
                           onChangeText={(text) => setEditInput(text)}
+                          placeholderTextColor="#666"
                           style={{
-                            flex: 1,
-                            backgroundColor: "#1a1a2e",
+                            backgroundColor: "#2a2a4e",
                             color: "#fff",
-                            padding: 6,
-                            borderRadius: 6,
-                            fontSize: 16,
+                            padding: 12,
+                            borderRadius: 8,
+                            fontSize: 18,
+                            marginBottom: 10,
+                            height: 52,
                           }}
                         />
                         {/* Category selector in edit mode */}
                         <View
                           style={{
                             flexDirection: "row",
-                            gap: 4,
-                            marginTop: 6,
+                            gap: 6,
                             flexWrap: "wrap",
+                            justifyContent: "center",
+                            marginBottom: 10,
                           }}
                         >
                           {CATEGORIES.map((cat) => (
@@ -611,34 +607,35 @@ export default function Index() {
                               style={{
                                 backgroundColor:
                                   selectedCategory === cat.label
-                                    ? "#e94560"
+                                    ? "#0077b6"
                                     : "#2a2a4e",
-                                paddingHorizontal: 12,
-                                paddingVertical: 8,
-                                borderRadius: 8,
+                                paddingHorizontal: 18,
+                                paddingVertical: 12,
+                                borderRadius: 20,
                               }}
                             >
-                              <Text style={{ color: "#fff", fontSize: 13 }}>
+                              <Text style={{ color: "#fff", fontSize: 15 }}>
                                 {cat.emoji} {cat.label}
                               </Text>
                             </TouchableOpacity>
                           ))}
                         </View>
+                        {/* Save button below categories */}
+                        <TouchableOpacity
+                          onPress={saveEdit}
+                          style={{
+                            backgroundColor: "#00b4d8",
+                            paddingHorizontal: 20,
+                            paddingVertical: 12,
+                            borderRadius: 50,
+                            alignItems: "center",
+                          }}
+                        >
+                          <Text style={{ color: "#fff", fontSize: 16 }}>
+                            Save
+                          </Text>
+                        </TouchableOpacity>
                       </View>
-                      <TouchableOpacity
-                        onPress={saveEdit}
-                        style={{
-                          backgroundColor: "#0a3a2a",
-                          paddingHorizontal: 14,
-                          paddingVertical: 8,
-                          borderRadius: 6,
-                          marginLeft: 8,
-                        }}
-                      >
-                        <Text style={{ color: "#00ff88", fontSize: 14 }}>
-                          Save
-                        </Text>
-                      </TouchableOpacity>
                     </>
                   ) : (
                     // Normal mode — show task and action buttons
@@ -659,9 +656,9 @@ export default function Index() {
                             height: 24,
                             borderRadius: 6,
                             borderWidth: 2,
-                            borderColor: task.done ? "#e94560" : "#555",
+                            borderColor: task.done ? "#0077b6" : "#555",
                             backgroundColor: task.done
-                              ? "#e94560"
+                              ? "#0077b6"
                               : "transparent",
                             alignItems: "center",
                             justifyContent: "center",
@@ -685,7 +682,8 @@ export default function Index() {
                             textDecorationLine: task.done
                               ? "line-through"
                               : "none",
-                            fontSize: 17,
+                            fontSize: 18,
+                            fontWeight: "bold",
                             flex: 1,
                           }}
                         >
@@ -700,26 +698,28 @@ export default function Index() {
                         <TouchableOpacity
                           onPress={() => startEdit(index)}
                           style={{
-                            backgroundColor: "#2a2a5e",
-                            paddingHorizontal: 14,
-                            paddingVertical: 8,
-                            borderRadius: 6,
+                            backgroundColor: "#0096c7",
+                            paddingHorizontal: 20,
+                            paddingVertical: 12,
+                            borderRadius: 50,
+                            alignItems: "center",
                           }}
                         >
-                          <Text style={{ color: "#aaaaff", fontSize: 14 }}>
+                          <Text style={{ color: "#fff", fontSize: 16 }}>
                             Edit
                           </Text>
                         </TouchableOpacity>
                         <TouchableOpacity
                           onPress={() => deleteTask(index)}
                           style={{
-                            backgroundColor: "#3a1a24",
-                            paddingHorizontal: 14,
-                            paddingVertical: 8,
-                            borderRadius: 6,
+                            backgroundColor: "#e63946",
+                            paddingHorizontal: 20,
+                            paddingVertical: 12,
+                            borderRadius: 50,
+                            alignItems: "center",
                           }}
                         >
-                          <Text style={{ color: "#e94560", fontSize: 14 }}>
+                          <Text style={{ color: "#fff", fontSize: 16 }}>
                             Delete
                           </Text>
                         </TouchableOpacity>
