@@ -1,4 +1,5 @@
 import { Audio } from "expo-av";
+import * as Notifications from "expo-notifications";
 import { useState, useEffect, useRef, useCallback } from "react";
 import {
   Text,
@@ -60,6 +61,14 @@ export default function Index() {
   const wasRunningRef = useRef(false);
   // Always holds the latest value of isRunning (for use inside callbacks)
   const isRunningRef = useRef(false);
+  // Always holds the latest value of seconds (for use inside callbacks)
+  const secondsRef = useRef(seconds);
+  // Holds the ID of the scheduled notification so we can cancel it if needed
+  const notificationIdRef = useRef<string | null>(null);
+  // Stores the timestamp (ms) when the timer is expected to end
+  const timerEndTimeRef = useRef<number | null>(null);
+  const workTimeRef = useRef(workTime);
+  const breakTimeRef = useRef(breakTime);
   // Fish positions — each fish swims independently
   const fish1X = useRef(new Animated.Value(0)).current;
   const fish2X = useRef(new Animated.Value(100)).current;
@@ -76,23 +85,47 @@ export default function Index() {
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
     if (isRunning) {
+      // Schedule a notification for when the timer ends
+      (async () => {
+        // Cancel any previously scheduled notification first
+        if (notificationIdRef.current) {
+          await Notifications.cancelScheduledNotificationAsync(
+            notificationIdRef.current,
+          );
+        }
+        const id = await Notifications.scheduleNotificationAsync({
+          content: {
+            title: isBreak ? "Break over! 💼" : "🍅 Pomodoro complete!",
+            body: isBreak ? "Time to focus." : "Time for a break.",
+            sound: isBreak ? "alarm.mp3" : "chime.mp3",
+            categoryIdentifier: "timer",
+          },
+          trigger: {
+            type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+            seconds,
+          },
+        });
+        notificationIdRef.current = id;
+      })();
       IntervalRef.current = setInterval(() => {
         setSeconds((s) => {
-          // When time runs out, switch modes automatically
           if (s <= 1) {
             clearInterval(IntervalRef.current!);
+            // Cancel the notification — we handle the timer end in-app
+            if (notificationIdRef.current) {
+              Notifications.cancelScheduledNotificationAsync(
+                notificationIdRef.current,
+              );
+              notificationIdRef.current = null;
+            }
             setIsRunning(false);
             setisBreak((prev) => {
-              // Play different sounds for work end and break end
               if (prev) {
-                // Play different sounds for work end and break end
                 if (!muted) playAlarm();
               } else {
                 if (!muted) playChime();
               }
-              // If we were on work, switch to break and vice versa
               const nextisBreak = !prev;
-              // If switching to break, if means a work session just ended - add 1
               if (nextisBreak) setPomodoroCount((c) => c + 1);
               setSeconds(nextisBreak ? breakTime : workTime);
               return nextisBreak;
@@ -103,9 +136,15 @@ export default function Index() {
         });
       }, 1000);
     } else {
+      // Timer paused or reset — cancel the scheduled notification
+      if (notificationIdRef.current) {
+        Notifications.cancelScheduledNotificationAsync(
+          notificationIdRef.current,
+        );
+        notificationIdRef.current = null;
+      }
       clearInterval(IntervalRef.current!);
     }
-    // Cleanup interval when component unmounts
     return () => clearInterval(IntervalRef.current!);
   }, [isRunning]);
 
@@ -139,18 +178,69 @@ export default function Index() {
     isRunningRef.current = isRunning;
   }, [isRunning]);
 
+  // Listen for notification action responses (e.g. "Mute sounds" button)
+  useEffect(() => {
+    const subscription = Notifications.addNotificationResponseReceivedListener(
+      (response) => {
+        if (response.actionIdentifier === "mute") {
+          setMuted(true);
+          AsyncStorage.setItem("muted", "true");
+        }
+      },
+    );
+    return () => subscription.remove();
+  }, []);
+
+  useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
+
+  useEffect(() => {
+    workTimeRef.current = workTime;
+  }, [workTime]);
+  useEffect(() => {
+    breakTimeRef.current = breakTime;
+  }, [breakTime]);
+
   // Pause timer when app goes to background, resume when coming back (only if focus mode is on)
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
-      if (focusMode) {
-        if (nextState === "background") {
-          // Remember if the timer was running before leaving
-          wasRunningRef.current = isRunningRef.current;
+      if (nextState === "background" && isRunningRef.current) {
+        // Save when the timer should end
+        timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
+        if (focusMode) {
+          wasRunningRef.current = true;
           setIsRunning(false);
-        } else if (nextState === "active" && wasRunningRef.current) {
-          // Resume the timer if it was running before
+        }
+      } else if (nextState === "active") {
+        if (focusMode && wasRunningRef.current) {
+          // Focus mode: resume timer
           setIsRunning(true);
           wasRunningRef.current = false;
+        } else if (
+          !focusMode &&
+          timerEndTimeRef.current &&
+          isRunningRef.current
+        ) {
+          // No focus mode: recalculate remaining time
+          const remaining = Math.round(
+            (timerEndTimeRef.current - Date.now()) / 1000,
+          );
+          timerEndTimeRef.current = null;
+          if (remaining > 0) {
+            setSeconds(remaining);
+          } else {
+            // Timer already ended while in background — switch modes
+            setIsRunning(false);
+            setisBreak((prev) => {
+              const nextIsBreak = !prev;
+              if (nextIsBreak) setPomodoroCount((c) => c + 1);
+              setSeconds(
+                nextIsBreak ? breakTimeRef.current : workTimeRef.current,
+              );
+              return nextIsBreak;
+            });
+          }
         }
       }
     });

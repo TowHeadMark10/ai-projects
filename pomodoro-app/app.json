@@ -32,8 +32,18 @@
     "plugins": [
       "expo-router",
       [
+        "expo-notifications",
+        {
+          "icon": "./assets/images/icon.png",
+          "color": "#0077b6",
+          "sounds": ["./assets/sounds/chime.mp3", "./assets/sounds/alarm.mp3"]
+        }
+      ],
+      [
         "expo-splash-screen",
         {
+          "icon": "./assets/images/icon.png",
+          "color": "#0077b6",
           "image": "./assets/images/splash-icon.png",
           "imageWidth": 200,
           "resizeMode": "contain",
