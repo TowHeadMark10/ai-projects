@@ -24,6 +24,17 @@ const CATEGORIES = [
   { label: "Health", emoji: "💪", color: "#2d9e5f" },
   { label: "Learning", emoji: "📚", color: "#c9a227" },
 ];
+const FISH_TYPES = [
+  { emoji: "🐟", size: 28, speed: 4000 }, // small, unlocks early
+  { emoji: "🐠", size: 34, speed: 3500 },
+  { emoji: "🐡", size: 32, speed: 4500 },
+  { emoji: "🦈", size: 44, speed: 3000 }, // big, unlocks later
+  { emoji: "🐙", size: 40, speed: 5000 },
+  { emoji: "🦑", size: 38, speed: 3800 },
+  { emoji: "🐬", size: 48, speed: 2800 }, // largest, unlocks at end
+  { emoji: "🐳", size: 54, speed: 2500 },
+];
+const MAX_FISH = 20;
 
 export default function Index() {
   // Hook to navigate between screens
@@ -60,18 +71,102 @@ export default function Index() {
   const wasRunningRef = useRef(false);
   // Always holds the latest value of isRunning (for use inside callbacks)
   const isRunningRef = useRef(false);
-  // Fish positions — each fish swims independently
-  const fish1X = useRef(new Animated.Value(0)).current;
-  const fish2X = useRef(new Animated.Value(100)).current;
-  const fish3X = useRef(new Animated.Value(220)).current;
-  // Fish direction — 1 = facing right, -1 = facing left
-  const fish1Scale = useRef(new Animated.Value(1)).current;
-  const fish2Scale = useRef(new Animated.Value(1)).current;
-  const fish3Scale = useRef(new Animated.Value(1)).current;
+  // Always holds the latest value of seconds (for use inside callbacks)
+  const secondsRef = useRef(seconds);
+  useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
+
+  // Always holds the latest work/break times (for use inside callbacks)
+  const workTimeRef = useRef(workTime);
+  useEffect(() => {
+    workTimeRef.current = workTime;
+  }, [workTime]);
+  // Bubble animations — each bubble rises independently
+  const bubble1Y = useRef(new Animated.Value(0)).current;
+  const bubble2Y = useRef(new Animated.Value(0)).current;
+  const bubble3Y = useRef(new Animated.Value(0)).current;
+  const bubble4Y = useRef(new Animated.Value(0)).current;
+  const bubble1Opacity = useRef(new Animated.Value(0)).current;
+  const bubble2Opacity = useRef(new Animated.Value(0)).current;
+  const bubble3Opacity = useRef(new Animated.Value(0)).current;
+  const bubble4Opacity = useRef(new Animated.Value(0)).current;
   // Whether focus mode is enabled (pauses timer when leaving app)
   const [focusMode, setFocusMode] = useState(false);
   // Whether timer sounds are muted
   const [muted, setMuted] = useState(false);
+  // List of active fish currently in the tank
+  const [activeFish, setActiveFish] = useState<
+    {
+      id: number;
+      emoji: string;
+      size: number;
+      speed: number;
+      x: Animated.Value;
+      scaleX: Animated.Value;
+      y: number;
+    }[]
+  >([]);
+  // Counter to assign unique IDs to each fish
+  const fishIdRef = useRef(0);
+  // Ref to the interval that spawns new fish
+  const fishSpawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  // Opacity for fade-out on reset
+  const fishContainerOpacity = useRef(new Animated.Value(1)).current;
+  // Always holds latest workTime for fish spawn calculations
+  const activeFishRef = useRef(activeFish);
+  useEffect(() => {
+    activeFishRef.current = activeFish;
+  }, [activeFish]);
+
+  // Spawn and despawn fish based on timer state
+  useEffect(() => {
+    if (isRunning) {
+      // Fade the fish container back in (in case it was faded out by reset)
+      fishContainerOpacity.stopAnimation();
+      Animated.timing(fishContainerOpacity, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+
+      // Spawn a new fish every 8 seconds if under the limit
+      fishSpawnIntervalRef.current = setInterval(() => {
+        if (activeFishRef.current.length >= MAX_FISH) return;
+
+        // Unlock more fish types as the timer progresses
+        // Early in session → only small fish; later → bigger/colorful ones
+        const progress = 1 - secondsRef.current / workTimeRef.current;
+        const maxTypeIndex = Math.floor(progress * FISH_TYPES.length);
+        const availableTypes = FISH_TYPES.slice(
+          0,
+          Math.max(1, maxTypeIndex + 1),
+        );
+        const type =
+          availableTypes[Math.floor(Math.random() * availableTypes.length)];
+
+        const newFish = {
+          id: fishIdRef.current++,
+          emoji: type.emoji,
+          size: type.size,
+          speed: type.speed,
+          x: new Animated.Value(-50),
+          scaleX: new Animated.Value(-1),
+          // Random vertical position in the water (not too close to sand or top)
+          y: Math.random() * 400 + 80,
+        };
+
+        swimNewFish(newFish);
+        setActiveFish((prev) => [...prev, newFish]);
+      }, 8000);
+    } else {
+      clearInterval(fishSpawnIntervalRef.current!);
+    }
+
+    return () => clearInterval(fishSpawnIntervalRef.current!);
+  }, [isRunning]);
 
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
@@ -157,11 +252,44 @@ export default function Index() {
     return () => subscription.remove();
   }, [focusMode]);
 
-  // Start fish animations when the app loads
+  // Animates a single bubble rising from the bottom and fading out
+  function riseBubble(
+    bubbleY: Animated.Value,
+    bubbleOpacity: Animated.Value,
+    delay: number,
+  ) {
+    bubbleY.setValue(0);
+    bubbleOpacity.setValue(0);
+    Animated.sequence([
+      Animated.delay(delay),
+      Animated.parallel([
+        Animated.timing(bubbleY, {
+          toValue: -600,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.timing(bubbleOpacity, {
+            toValue: 0.6,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bubbleOpacity, {
+            toValue: 0,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start(() => riseBubble(bubbleY, bubbleOpacity, 0));
+  }
+
   useEffect(() => {
-    swimFish(fish1X, fish1Scale, 0);
-    swimFish(fish2X, fish2Scale, 100);
-    swimFish(fish3X, fish3Scale, 220);
+    // Start each bubble with a different delay so they don't all rise together
+    riseBubble(bubble1Y, bubble1Opacity, 0);
+    riseBubble(bubble2Y, bubble2Opacity, 1000);
+    riseBubble(bubble3Y, bubble3Opacity, 2200);
+    riseBubble(bubble4Y, bubble4Opacity, 3500);
   }, []);
 
   // Converts seconds to MM:SS format. padStart(2,"0") makes sure it always has two digits - so it shows 04:05 and not 4:5
@@ -176,6 +304,15 @@ export default function Index() {
     setIsRunning(false);
     setisBreak(false);
     setSeconds(workTime);
+    // Stop any ongoing opacity animation before starting fade-out
+    fishContainerOpacity.stopAnimation();
+    Animated.timing(fishContainerOpacity, {
+      toValue: 0,
+      duration: 800,
+      useNativeDriver: true,
+    }).start(() => {
+      setActiveFish([]);
+    });
   }
 
   // Skips the break and goes back to work mode immediately
@@ -183,6 +320,35 @@ export default function Index() {
     setisBreak(false); // returns to work mode
     setIsRunning(false); // pauses the timer so the user can start it whenever they want
     setSeconds(workTime); // loads the 25 mins again
+  }
+
+  // Animates a fish swimming across the screen and removes it when done
+  function swimNewFish(fish: {
+    id: number;
+    x: Animated.Value;
+    scaleX: Animated.Value;
+    speed: number;
+  }) {
+    // Face right and swim to the end
+    fish.scaleX.setValue(-1);
+    Animated.timing(fish.x, {
+      toValue: 400,
+      duration: fish.speed,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      // Face left and swim back
+      fish.scaleX.setValue(1);
+      Animated.timing(fish.x, {
+        toValue: -50,
+        duration: fish.speed,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        // Loop forever
+        swimNewFish(fish);
+      });
+    });
   }
 
   // Plays a soft chime sound when work session ends
@@ -247,490 +413,635 @@ export default function Index() {
     setEditingIndex(null);
     setEditInput("");
   }
-  function swimFish(
-    fishX: Animated.Value,
-    fishScale: Animated.Value,
-    startX: number,
-  ) {
-    // Face right and swim to the end
-    fishScale.setValue(-1); // turns the fish to the right
-    Animated.timing(fishX, {
-      // moves the fish to the position 320px
-      toValue: 320,
-      duration: 3000, // in 3 secs
-      useNativeDriver: true,
-    }).start(() => {
-      // when it ends...
-      // Face left and swim back
-      fishScale.setValue(1); // turns the fish to the right
-      Animated.timing(fishX, {
-        // goes back to the original position
-        toValue: startX,
-        duration: 3000,
-        useNativeDriver: true,
-      }).start(() => swimFish(fishX, fishScale, startX)); // when it ends, it calls to itself = infinite loop
-    });
-  }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
-      <ScrollView
-        contentContainerStyle={{
-          alignItems: "center",
-          paddingVertical: 48,
-          paddingHorizontal: 24,
-        }}
-        showsVerticalScrollIndicator={false}
+    <View style={{ flex: 1 }}>
+      {/* ── AQUARIUM BACKGROUND ── */}
+      <View
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       >
-        {/* ── TIMER SECTION ── */}
-        <View style={{ alignItems: "center", width: "100%", maxWidth: 400 }}>
-          {/* Mode label + pomodoro count + settings button */}
-          <View
+        {/* Water gradient */}
+        <View style={{ flex: 1, backgroundColor: "#0a1628" }} />
+        {/* Sand at the bottom */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 60,
+            backgroundColor: "#c2a46e",
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+          }}
+        />
+        {/* Darker sand stripe */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 30,
+            backgroundColor: "#a8895a",
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+          }}
+        />
+      </View>
+      {/* Rock 1 - left side */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 45,
+          left: 30,
+          width: 50,
+          height: 35,
+          backgroundColor: "#6b6b6b",
+          borderRadius: 20,
+        }}
+      />
+      {/* Rock 2 - right side, smaller */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 42,
+          right: 50,
+          width: 35,
+          height: 25,
+          backgroundColor: "#555555",
+          borderRadius: 15,
+        }}
+      />
+      {/* Rock 3 - right side, behind rock 2 */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 48,
+          right: 30,
+          width: 45,
+          height: 30,
+          backgroundColor: "#4a4a4a",
+          borderRadius: 18,
+        }}
+      />
+
+      {/* Plant 1 - left, tall */}
+      <View style={{ position: "absolute", bottom: 55, left: 20 }}>
+        <Text style={{ fontSize: 40 }}>🌿</Text>
+      </View>
+      {/* Plant 2 - left, shorter */}
+      <View style={{ position: "absolute", bottom: 52, left: 55 }}>
+        <Text style={{ fontSize: 28 }}>🌱</Text>
+      </View>
+      {/* Plant 3 - right */}
+      <View style={{ position: "absolute", bottom: 55, right: 20 }}>
+        <Text style={{ fontSize: 36 }}>🪸 </Text>
+      </View>
+      {/* Plant 4 - right, behind */}
+      <View style={{ position: "absolute", bottom: 52, right: 55 }}>
+        <Text style={{ fontSize: 28 }}>🌿</Text>
+      </View>
+
+      {/* Castle decoration - center */}
+      <View style={{ position: "absolute", bottom: 58, left: "43%" }}>
+        <Text style={{ fontSize: 32 }}>🏰</Text>
+      </View>
+      {/* Bubbles rising from the bottom */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          left: "20%",
+          opacity: bubble1Opacity,
+          transform: [{ translateY: bubble1Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 7,
+            backgroundColor: "#90e0ef55",
+            borderWidth: 1,
+            borderColor: "#90e0ef99",
+          }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          left: "45%",
+          opacity: bubble2Opacity,
+          transform: [{ translateY: bubble2Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: "#90e0ef33",
+            borderWidth: 1,
+            borderColor: "#90e0ef88",
+          }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          right: "25%",
+          opacity: bubble3Opacity,
+          transform: [{ translateY: bubble3Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            backgroundColor: "#90e0ef44",
+            borderWidth: 1,
+            borderColor: "#90e0ef77",
+          }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          left: "65%",
+          opacity: bubble4Opacity,
+          transform: [{ translateY: bubble4Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: 8,
+            backgroundColor: "#90e0ef33",
+            borderWidth: 1,
+            borderColor: "#90e0ef88",
+          }}
+        />
+      </Animated.View>
+
+      {/* Dynamic fish — appear as timer progresses */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          opacity: fishContainerOpacity,
+        }}
+      >
+        {activeFish.map((fish) => (
+          <Animated.Text
+            key={fish.id}
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              marginBottom: 8,
-              gap: 12,
+              position: "absolute",
+              top: fish.y,
+              fontSize: fish.size,
+              transform: [{ translateX: fish.x }, { scaleX: fish.scaleX }],
             }}
           >
-            {/* Center group: FOCUS/BREAK badge and pomodoro count */}
+            {fish.emoji}
+          </Animated.Text>
+        ))}
+      </Animated.View>
+
+      {/* ── CONTENT ON TOP ── */}
+      <SafeAreaView style={{ flex: 1 }}>
+        <ScrollView
+          contentContainerStyle={{
+            alignItems: "center",
+            paddingVertical: 48,
+            paddingHorizontal: 24,
+          }}
+          showsVerticalScrollIndicator={false}
+        >
+          {/* ── TIMER SECTION ── */}
+          <View
+            style={{
+              alignItems: "center",
+              width: "100%",
+              maxWidth: 400,
+              backgroundColor: "#0a162888",
+              borderRadius: 24,
+              padding: 24,
+              marginBottom: 16,
+            }}
+          >
+            {/* Mode label + pomodoro count + settings button */}
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                marginBottom: 8,
+                gap: 12,
+              }}
             >
               <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View
+                  style={{
+                    backgroundColor: isBreak ? "#90e0ef22" : "#00b4d822",
+                    borderColor: isBreak ? "#90e0ef" : "#00b4d8",
+                    paddingHorizontal: 14,
+                    paddingVertical: 4,
+                    borderRadius: 20,
+                    borderWidth: 1,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: isBreak ? "#90e0ef" : "#00b4d8",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      letterSpacing: 2,
+                    }}
+                  >
+                    {isBreak ? "BREAK" : "FOCUS"}
+                  </Text>
+                </View>
+                <Text style={{ color: "#555", fontSize: 16 }}>
+                  🍅 {pomodoroCount}
+                </Text>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.push("/settings" as any)}
+                style={{ position: "absolute", right: 0 }}
+              >
+                <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Timer */}
+            <Text
+              style={{
+                fontSize: 88,
+                color: "#ffffff",
+                fontWeight: "bold",
+                letterSpacing: -2,
+                marginBottom: 4,
+              }}
+            >
+              {formatTime(seconds)}
+            </Text>
+
+            {/* Skip break */}
+            {isBreak && (
+              <TouchableOpacity
+                onPress={skipBreak}
                 style={{
-                  backgroundColor: isBreak ? "#90e0ef22" : "#00b4d822",
-                  borderColor: isBreak ? "#90e0ef" : "#00b4d8",
-                  paddingHorizontal: 14,
-                  paddingVertical: 4,
-                  borderRadius: 20,
+                  backgroundColor: "#1e1e3088",
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  borderRadius: 50,
                   borderWidth: 1,
+                  borderColor: "#00b4d8",
+                  marginBottom: 8,
+                }}
+              >
+                <Text
+                  style={{ color: "#00b4d8", fontSize: 14, fontWeight: "bold" }}
+                >
+                  Skip break →
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Buttons */}
+            <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
+              <TouchableOpacity
+                onPress={() => setIsRunning(!isRunning)}
+                style={{
+                  backgroundColor: isRunning ? "#333" : "#0077b6",
+                  paddingVertical: 14,
+                  paddingHorizontal: 40,
+                  borderRadius: 50,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}
+                >
+                  {isRunning ? "Pause" : "Start"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={reset}
+                style={{
+                  backgroundColor: "#1e1e3088",
+                  paddingVertical: 14,
+                  paddingHorizontal: 24,
+                  borderRadius: 50,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: "#333",
+                }}
+              >
+                <Text style={{ color: "#888", fontSize: 16 }}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+
+          {/* ── TASKS SECTION ── */}
+          <View
+            style={{
+              width: "100%",
+              maxWidth: 400,
+              backgroundColor: "#0a162888",
+              borderRadius: 24,
+              padding: 24,
+            }}
+          >
+            {/* Task input */}
+            <View style={{ flexDirection: "row", gap: 8 }}>
+              <TextInput
+                value={taskInput}
+                onChangeText={(text) => setTaskInput(text)}
+                placeholder="Add a task..."
+                placeholderTextColor="#aaa"
+                style={{
+                  flex: 1,
+                  backgroundColor: "#2a2a4e",
+                  color: "#ffffff",
+                  padding: 16,
+                  borderRadius: 12,
+                  fontSize: 18,
+                  height: 52,
+                }}
+              />
+              <TouchableOpacity
+                onPress={addTask}
+                style={{
+                  backgroundColor: "#0077b6",
+                  paddingHorizontal: 20,
+                  borderRadius: 50,
+                  justifyContent: "center",
+                  height: 52,
+                  width: 100,
                 }}
               >
                 <Text
                   style={{
-                    color: isBreak ? "#90e0ef" : "#00b4d8",
-                    fontSize: 14,
+                    color: "#fff",
                     fontWeight: "bold",
-                    letterSpacing: 2,
+                    fontSize: 16,
+                    textAlign: "center",
                   }}
                 >
-                  {isBreak ? "BREAK" : "FOCUS"}
+                  Add
                 </Text>
-              </View>
-              <Text style={{ color: "#555", fontSize: 16 }}>
-                🍅 {pomodoroCount}
-              </Text>
+              </TouchableOpacity>
             </View>
-            {/* Settings button on the right */}
-            <TouchableOpacity
-              onPress={() => router.push("/settings" as any)}
-              style={{ position: "absolute", right: 0 }}
-            >
-              <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
-            </TouchableOpacity>
-          </View>
 
-          {/* Timer */}
-          <Text
-            style={{
-              fontSize: 88,
-              color: "#ffffff",
-              fontWeight: "bold",
-              letterSpacing: -2,
-              marginBottom: 4,
-            }}
-          >
-            {formatTime(seconds)}
-          </Text>
-
-          {/* Skip break */}
-          {isBreak && (
-            <TouchableOpacity
-              onPress={skipBreak}
+            {/* Category filter buttons */}
+            <Text
               style={{
-                backgroundColor: "#1e1e30",
-                paddingHorizontal: 20,
-                paddingVertical: 10,
-                borderRadius: 50,
-                borderWidth: 1,
-                borderColor: "#00b4d8",
-                marginBottom: 8,
+                color: "#888",
+                fontSize: 11,
+                marginTop: 16,
+                letterSpacing: 1,
               }}
             >
-              <Text
-                style={{ color: "#00b4d8", fontSize: 14, fontWeight: "bold" }}
-              >
-                Skip break →
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Buttons */}
-          <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
-            {/* Start/Pause button */}
-            <TouchableOpacity
-              onPress={() => setIsRunning(!isRunning)}
+              FILTER BY
+            </Text>
+            <View
               style={{
-                backgroundColor: isRunning ? "#333" : "#0077b6",
-                paddingVertical: 14,
-                paddingHorizontal: 40,
-                borderRadius: 50,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>
-                {isRunning ? "Pause" : "Start"}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Reset button */}
-            <TouchableOpacity
-              onPress={reset}
-              style={{
-                backgroundColor: "#1e1e30",
-                paddingVertical: 14,
-                paddingHorizontal: 24,
-                borderRadius: 50,
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: "#333",
-              }}
-            >
-              <Text style={{ color: "#888", fontSize: 16 }}>Reset</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── FISH TANK ── */}
-        <View
-          style={{
-            width: "100%",
-            maxWidth: 400,
-            height: 80,
-            backgroundColor: "#0a1628",
-            borderRadius: 16,
-            marginVertical: 32,
-            overflow: "hidden",
-            borderWidth: 1,
-            borderColor: "#1a3a5c",
-          }}
-        >
-          <Animated.Text
-            style={{
-              fontSize: 24,
-              position: "absolute",
-              top: 24,
-              transform: [{ translateX: fish1X }, { scaleX: fish1Scale }],
-            }}
-          >
-            🐠
-          </Animated.Text>
-          <Animated.Text
-            style={{
-              fontSize: 20,
-              position: "absolute",
-              top: 10,
-              transform: [{ translateX: fish2X }, { scaleX: fish2Scale }],
-            }}
-          >
-            🐟
-          </Animated.Text>
-          <Animated.Text
-            style={{
-              fontSize: 18,
-              position: "absolute",
-              top: 38,
-              transform: [{ translateX: fish3X }, { scaleX: fish3Scale }],
-            }}
-          >
-            🐡
-          </Animated.Text>
-        </View>
-
-        {/* ── TASKS SECTION ── */}
-        <View style={{ width: "100%", maxWidth: 400 }}>
-          {/* Task input */}
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TextInput
-              value={taskInput}
-              onChangeText={(text) => setTaskInput(text)}
-              placeholder="Add a task..."
-              placeholderTextColor="#aaa"
-              style={{
-                flex: 1,
-                backgroundColor: "#2a2a4e",
-                color: "#ffffff",
-                padding: 16,
-                borderRadius: 12,
-                fontSize: 18,
-                height: 52,
-              }}
-            />
-            <TouchableOpacity
-              onPress={addTask}
-              style={{
-                backgroundColor: "#0077b6",
-                paddingHorizontal: 20,
-                borderRadius: 50,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 6,
+                marginTop: 8,
                 justifyContent: "center",
-                height: 52,
-                width: 100,
               }}
             >
-              <Text
-                style={{
-                  color: "#fff",
-                  fontWeight: "bold",
-                  fontSize: 16,
-                  textAlign: "center",
-                }}
-              >
-                Add
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Category filter buttons */}
-          <Text
-            style={{
-              color: "#888",
-              fontSize: 11,
-              marginTop: 16,
-              letterSpacing: 1,
-            }}
-          >
-            FILTER BY
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 6,
-              marginTop: 8,
-              justifyContent: "center",
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => setFilterCategory(null)}
-              style={{
-                backgroundColor:
-                  filterCategory === null ? "#0077b6" : "#1e1e30",
-                paddingHorizontal: 18,
-                paddingVertical: 12,
-                borderRadius: 22,
-                borderWidth: 1,
-                borderColor: filterCategory === null ? "#0077b6" : "#333",
-              }}
-            >
-              <Text style={{ color: "#fff", fontSize: 15 }}>All</Text>
-            </TouchableOpacity>
-            {CATEGORIES.map((cat) => (
               <TouchableOpacity
-                key={cat.label}
-                onPress={() => setFilterCategory(cat.label)}
+                onPress={() => setFilterCategory(null)}
                 style={{
                   backgroundColor:
-                    filterCategory === cat.label ? "#0077b6" : "#1e1e30",
+                    filterCategory === null ? "#0077b6" : "#1e1e30",
                   paddingHorizontal: 18,
                   paddingVertical: 12,
                   borderRadius: 22,
                   borderWidth: 1,
-                  borderColor:
-                    filterCategory === cat.label ? "#0077b6" : "#333",
+                  borderColor: filterCategory === null ? "#0077b6" : "#333",
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 15 }}>
-                  {cat.emoji} {cat.label}
-                </Text>
+                <Text style={{ color: "#fff", fontSize: 15 }}>All</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Task list */}
-          <View style={{ marginTop: 16 }}>
-            {tasks
-              .map((task, originalIndex) => ({ task, originalIndex }))
-              .filter(
-                ({ task }) =>
-                  filterCategory === null || task.category === filterCategory,
-              )
-              .map(({ task, originalIndex: index }) => (
-                <View
-                  key={index}
+              {CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat.label}
+                  onPress={() => setFilterCategory(cat.label)}
                   style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    backgroundColor: "#1e1e30",
-                    padding: 18,
-                    borderRadius: 12,
-                    marginBottom: 10,
+                    backgroundColor:
+                      filterCategory === cat.label ? "#0077b6" : "#1e1e30",
+                    paddingHorizontal: 18,
+                    paddingVertical: 12,
+                    borderRadius: 22,
                     borderWidth: 1,
-                    borderColor: "#2a2a4e",
+                    borderColor:
+                      filterCategory === cat.label ? "#0077b6" : "#333",
                   }}
                 >
-                  {editingIndex === index ? (
-                    // Edit mode — show input and save button
-                    <>
-                      <View style={{ flex: 1 }}>
-                        <TextInput
-                          value={editInput}
-                          onChangeText={(text) => setEditInput(text)}
-                          placeholderTextColor="#666"
-                          style={{
-                            backgroundColor: "#2a2a4e",
-                            color: "#fff",
-                            padding: 12,
-                            borderRadius: 8,
-                            fontSize: 18,
-                            marginBottom: 10,
-                            height: 52,
-                          }}
-                        />
-                        {/* Category selector in edit mode */}
-                        <View
-                          style={{
-                            flexDirection: "row",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            justifyContent: "center",
-                            marginBottom: 10,
-                          }}
-                        >
-                          {CATEGORIES.map((cat) => (
-                            <TouchableOpacity
-                              key={cat.label}
-                              onPress={() => setSelectedCategory(cat.label)}
-                              style={{
-                                backgroundColor:
-                                  selectedCategory === cat.label
-                                    ? "#0077b6"
-                                    : "#2a2a4e",
-                                paddingHorizontal: 18,
-                                paddingVertical: 12,
-                                borderRadius: 20,
-                              }}
-                            >
-                              <Text style={{ color: "#fff", fontSize: 15 }}>
-                                {cat.emoji} {cat.label}
-                              </Text>
-                            </TouchableOpacity>
-                          ))}
-                        </View>
-                        {/* Save button below categories */}
-                        <TouchableOpacity
-                          onPress={saveEdit}
-                          style={{
-                            backgroundColor: "#00b4d8",
-                            paddingHorizontal: 20,
-                            paddingVertical: 12,
-                            borderRadius: 50,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 16 }}>
-                            Save
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    // Normal mode — show task and action buttons
-                    <>
-                      <TouchableOpacity
-                        onPress={() => toggleTask(index)}
-                        style={{
-                          flex: 1,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 12,
-                        }}
-                      >
-                        {/* Checkbox */}
-                        <View
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 6,
-                            borderWidth: 2,
-                            borderColor: task.done ? "#0077b6" : "#555",
-                            backgroundColor: task.done
-                              ? "#0077b6"
-                              : "transparent",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          {task.done && (
-                            <Text
-                              style={{
-                                color: "#fff",
-                                fontSize: 14,
-                                fontWeight: "bold",
-                              }}
-                            >
-                              ✓
-                            </Text>
-                          )}
-                        </View>
-                        <Text
-                          style={{
-                            color: task.done ? "#555" : "#e0e0e0",
-                            textDecorationLine: task.done
-                              ? "line-through"
-                              : "none",
-                            fontSize: 18,
-                            fontWeight: "bold",
-                            flex: 1,
-                          }}
-                        >
-                          {
-                            CATEGORIES.find((c) => c.label === task.category)
-                              ?.emoji
-                          }{" "}
-                          {task.title}
-                        </Text>
-                      </TouchableOpacity>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => startEdit(index)}
-                          style={{
-                            backgroundColor: "#0096c7",
-                            paddingHorizontal: 20,
-                            paddingVertical: 12,
-                            borderRadius: 50,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 16 }}>
-                            Edit
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => deleteTask(index)}
-                          style={{
-                            backgroundColor: "#e63946",
-                            paddingHorizontal: 20,
-                            paddingVertical: 12,
-                            borderRadius: 50,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 16 }}>
-                            Delete
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
-                </View>
+                  <Text style={{ color: "#fff", fontSize: 15 }}>
+                    {cat.emoji} {cat.label}
+                  </Text>
+                </TouchableOpacity>
               ))}
+            </View>
+
+            {/* Task list */}
+            <View style={{ marginTop: 16 }}>
+              {tasks
+                .map((task, originalIndex) => ({ task, originalIndex }))
+                .filter(
+                  ({ task }) =>
+                    filterCategory === null || task.category === filterCategory,
+                )
+                .map(({ task, originalIndex: index }) => (
+                  <View
+                    key={index}
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      backgroundColor: "#1e1e3088",
+                      padding: 18,
+                      borderRadius: 12,
+                      marginBottom: 10,
+                      borderWidth: 1,
+                      borderColor: "#2a2a4e",
+                    }}
+                  >
+                    {editingIndex === index ? (
+                      <>
+                        <View style={{ flex: 1 }}>
+                          <TextInput
+                            value={editInput}
+                            onChangeText={(text) => setEditInput(text)}
+                            placeholderTextColor="#666"
+                            style={{
+                              backgroundColor: "#2a2a4e",
+                              color: "#fff",
+                              padding: 12,
+                              borderRadius: 8,
+                              fontSize: 18,
+                              marginBottom: 10,
+                              height: 52,
+                            }}
+                          />
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              gap: 6,
+                              flexWrap: "wrap",
+                              justifyContent: "center",
+                              marginBottom: 10,
+                            }}
+                          >
+                            {CATEGORIES.map((cat) => (
+                              <TouchableOpacity
+                                key={cat.label}
+                                onPress={() => setSelectedCategory(cat.label)}
+                                style={{
+                                  backgroundColor:
+                                    selectedCategory === cat.label
+                                      ? "#0077b6"
+                                      : "#2a2a4e",
+                                  paddingHorizontal: 18,
+                                  paddingVertical: 12,
+                                  borderRadius: 20,
+                                }}
+                              >
+                                <Text style={{ color: "#fff", fontSize: 15 }}>
+                                  {cat.emoji} {cat.label}
+                                </Text>
+                              </TouchableOpacity>
+                            ))}
+                          </View>
+                          <TouchableOpacity
+                            onPress={saveEdit}
+                            style={{
+                              backgroundColor: "#00b4d8",
+                              paddingHorizontal: 20,
+                              paddingVertical: 12,
+                              borderRadius: 50,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text style={{ color: "#fff", fontSize: 16 }}>
+                              Save
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    ) : (
+                      <>
+                        <TouchableOpacity
+                          onPress={() => toggleTask(index)}
+                          style={{
+                            flex: 1,
+                            flexDirection: "row",
+                            alignItems: "center",
+                            gap: 12,
+                          }}
+                        >
+                          <View
+                            style={{
+                              width: 24,
+                              height: 24,
+                              borderRadius: 6,
+                              borderWidth: 2,
+                              borderColor: task.done ? "#0077b6" : "#555",
+                              backgroundColor: task.done
+                                ? "#0077b6"
+                                : "transparent",
+                              alignItems: "center",
+                              justifyContent: "center",
+                            }}
+                          >
+                            {task.done && (
+                              <Text
+                                style={{
+                                  color: "#fff",
+                                  fontSize: 14,
+                                  fontWeight: "bold",
+                                }}
+                              >
+                                ✓
+                              </Text>
+                            )}
+                          </View>
+                          <Text
+                            style={{
+                              color: task.done ? "#555" : "#e0e0e0",
+                              textDecorationLine: task.done
+                                ? "line-through"
+                                : "none",
+                              fontSize: 18,
+                              fontWeight: "bold",
+                              flex: 1,
+                            }}
+                          >
+                            {
+                              CATEGORIES.find((c) => c.label === task.category)
+                                ?.emoji
+                            }{" "}
+                            {task.title}
+                          </Text>
+                        </TouchableOpacity>
+                        <View style={{ flexDirection: "row", gap: 8 }}>
+                          <TouchableOpacity
+                            onPress={() => startEdit(index)}
+                            style={{
+                              backgroundColor: "#0096c7",
+                              paddingHorizontal: 20,
+                              paddingVertical: 12,
+                              borderRadius: 50,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text style={{ color: "#fff", fontSize: 16 }}>
+                              Edit
+                            </Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity
+                            onPress={() => deleteTask(index)}
+                            style={{
+                              backgroundColor: "#e63946",
+                              paddingHorizontal: 20,
+                              paddingVertical: 12,
+                              borderRadius: 50,
+                              alignItems: "center",
+                            }}
+                          >
+                            <Text style={{ color: "#fff", fontSize: 16 }}>
+                              Delete
+                            </Text>
+                          </TouchableOpacity>
+                        </View>
+                      </>
+                    )}
+                  </View>
+                ))}
+            </View>
           </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+        </ScrollView>
+      </SafeAreaView>
+    </View>
   );
 }
