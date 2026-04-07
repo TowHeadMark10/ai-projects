@@ -85,6 +85,8 @@ export default function Index() {
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
     if (isRunning) {
+      // Save when the timer should end so we can recalculate after going to background
+      timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
       // Schedule a notification for when the timer ends
       (async () => {
         // Cancel any previously scheduled notification first
