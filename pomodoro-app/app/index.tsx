@@ -1,5 +1,6 @@
 import { Audio } from "expo-av";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { BlurView } from "expo-blur";
 import {
   Text,
   View,
@@ -420,8 +421,8 @@ export default function Index() {
       <View
         style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       >
-        {/* Water gradient */}
-        <View style={{ flex: 1, backgroundColor: "#0a1628" }} />
+        {/* Water — crystal aqua blue */}
+        <View style={{ flex: 1, backgroundColor: "#06b6d4" }} />
         {/* Sand at the bottom */}
         <View
           style={{
@@ -634,8 +635,6 @@ export default function Index() {
               alignItems: "center",
               width: "100%",
               maxWidth: 400,
-              backgroundColor: "#0a162888",
-              borderRadius: 24,
               padding: 24,
               marginBottom: 16,
             }}
@@ -656,17 +655,16 @@ export default function Index() {
               >
                 <View
                   style={{
-                    backgroundColor: isBreak ? "#90e0ef22" : "#00b4d822",
-                    borderColor: isBreak ? "#90e0ef" : "#00b4d8",
-                    paddingHorizontal: 14,
+                    backgroundColor: "rgba(0,0,0,0.2)",
+                    borderWidth: 0,
+                    paddingHorizontal: 12,
                     paddingVertical: 4,
-                    borderRadius: 20,
-                    borderWidth: 1,
+                    borderRadius: 6,
                   }}
                 >
                   <Text
                     style={{
-                      color: isBreak ? "#90e0ef" : "#00b4d8",
+                      color: "rgba(255,255,255,0.9)",
                       fontSize: 14,
                       fontWeight: "bold",
                       letterSpacing: 2,
@@ -675,7 +673,7 @@ export default function Index() {
                     {isBreak ? "BREAK" : "FOCUS"}
                   </Text>
                 </View>
-                <Text style={{ color: "#555", fontSize: 16 }}>
+                <Text style={{ color: "#fff", fontSize: 16 }}>
                   🍅 {pomodoroCount}
                 </Text>
               </View>
@@ -687,35 +685,54 @@ export default function Index() {
               </TouchableOpacity>
             </View>
 
-            {/* Timer */}
-            <Text
-              style={{
-                fontSize: 88,
-                color: "#ffffff",
-                fontWeight: "bold",
-                letterSpacing: -2,
-                marginBottom: 4,
-              }}
-            >
-              {formatTime(seconds)}
-            </Text>
+            {/* Timer — transparent glass effect using stacked text */}
+            <View style={{ marginBottom: 4 }}>
+              {/* White outline layer */}
+              <Text
+                style={{
+                  fontSize: 135,
+                  color: "transparent",
+                  fontWeight: "bold",
+                  letterSpacing: -2,
+                  textShadowColor: "rgba(255,255,255,0.9)",
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 30,
+                }}
+              >
+                {formatTime(seconds)}
+              </Text>
+              {/* Transparent fill layer on top */}
+              <Text
+                style={{
+                  fontSize: 135,
+                  color: "rgba(255,255,255,0.6)",
+                  fontWeight: "bold",
+                  letterSpacing: -2,
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                }}
+              >
+                {formatTime(seconds)}
+              </Text>
+            </View>
 
             {/* Skip break */}
             {isBreak && (
               <TouchableOpacity
                 onPress={skipBreak}
                 style={{
-                  backgroundColor: "#1e1e3088",
+                  backgroundColor: "rgba(0,0,0,0.2)",
+                  borderColor: "rgba(255,255,255,0.6)",
                   paddingHorizontal: 20,
                   paddingVertical: 10,
                   borderRadius: 50,
                   borderWidth: 1,
-                  borderColor: "#00b4d8",
                   marginBottom: 8,
                 }}
               >
                 <Text
-                  style={{ color: "#00b4d8", fontSize: 14, fontWeight: "bold" }}
+                  style={{ color: "#ffffff", fontSize: 14, fontWeight: "bold" }}
                 >
                   Skip break →
                 </Text>
@@ -727,7 +744,9 @@ export default function Index() {
               <TouchableOpacity
                 onPress={() => setIsRunning(!isRunning)}
                 style={{
-                  backgroundColor: isRunning ? "#333" : "#0077b6",
+                  backgroundColor: isRunning
+                    ? "rgba(255,255,255,0.15)"
+                    : "#ff6b35",
                   paddingVertical: 14,
                   paddingHorizontal: 40,
                   borderRadius: 50,
@@ -743,28 +762,34 @@ export default function Index() {
               <TouchableOpacity
                 onPress={reset}
                 style={{
-                  backgroundColor: "#1e1e3088",
+                  backgroundColor: "rgba(255,255,255,0.1)",
                   paddingVertical: 14,
                   paddingHorizontal: 24,
                   borderRadius: 50,
                   alignItems: "center",
                   borderWidth: 1,
-                  borderColor: "#333",
+                  borderColor: "rgba(255,255,255,0.4)",
                 }}
               >
-                <Text style={{ color: "#888", fontSize: 16 }}>Reset</Text>
+                <Text style={{ color: "#fff", fontSize: 16 }}>Reset</Text>
               </TouchableOpacity>
             </View>
           </View>
 
           {/* ── TASKS SECTION ── */}
-          <View
+          <BlurView
+            intensity={40}
+            tint="dark"
             style={{
+              alignItems: "center",
               width: "100%",
               maxWidth: 400,
-              backgroundColor: "#0a162888",
               borderRadius: 24,
+              overflow: "hidden",
               padding: 24,
+              marginBottom: 16,
+              borderWidth: 1,
+              borderColor: "rgba(255,255,255,0.2)",
             }}
           >
             {/* Task input */}
@@ -773,10 +798,12 @@ export default function Index() {
                 value={taskInput}
                 onChangeText={(text) => setTaskInput(text)}
                 placeholder="Add a task..."
-                placeholderTextColor="#aaa"
+                placeholderTextColor="rgba(255,255,255,0.6)"
                 style={{
                   flex: 1,
-                  backgroundColor: "#2a2a4e",
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.3)",
                   color: "#ffffff",
                   padding: 16,
                   borderRadius: 12,
@@ -787,7 +814,7 @@ export default function Index() {
               <TouchableOpacity
                 onPress={addTask}
                 style={{
-                  backgroundColor: "#0077b6",
+                  backgroundColor: "#ff6b35",
                   paddingHorizontal: 20,
                   borderRadius: 50,
                   justifyContent: "center",
@@ -811,7 +838,7 @@ export default function Index() {
             {/* Category filter buttons */}
             <Text
               style={{
-                color: "#888",
+                color: "rgba(255,255,255,0.6)",
                 fontSize: 11,
                 marginTop: 16,
                 letterSpacing: 1,
@@ -832,12 +859,17 @@ export default function Index() {
                 onPress={() => setFilterCategory(null)}
                 style={{
                   backgroundColor:
-                    filterCategory === null ? "#0077b6" : "#1e1e30",
+                    filterCategory === null
+                      ? "#ff6b35"
+                      : "rgba(255,255,255,0.15)",
                   paddingHorizontal: 18,
                   paddingVertical: 12,
                   borderRadius: 22,
                   borderWidth: 1,
-                  borderColor: filterCategory === null ? "#0077b6" : "#333",
+                  borderColor:
+                    filterCategory === null
+                      ? "#ff6b35"
+                      : "rgba(255,255,255,0.15)",
                 }}
               >
                 <Text style={{ color: "#fff", fontSize: 15 }}>All</Text>
@@ -848,13 +880,17 @@ export default function Index() {
                   onPress={() => setFilterCategory(cat.label)}
                   style={{
                     backgroundColor:
-                      filterCategory === cat.label ? "#0077b6" : "#1e1e30",
+                      filterCategory === cat.label
+                        ? "#ff6b35"
+                        : "rgba(255,255,255,0.15)",
                     paddingHorizontal: 18,
                     paddingVertical: 12,
                     borderRadius: 22,
                     borderWidth: 1,
                     borderColor:
-                      filterCategory === cat.label ? "#0077b6" : "#333",
+                      filterCategory === cat.label
+                        ? "#ff6b35"
+                        : "rgba(255,255,255,0.15)",
                   }}
                 >
                   <Text style={{ color: "#fff", fontSize: 15 }}>
@@ -865,7 +901,7 @@ export default function Index() {
             </View>
 
             {/* Task list */}
-            <View style={{ marginTop: 16 }}>
+            <View style={{ marginTop: 16, width: "100%" }}>
               {tasks
                 .map((task, originalIndex) => ({ task, originalIndex }))
                 .filter(
@@ -878,13 +914,14 @@ export default function Index() {
                     style={{
                       flexDirection: "row",
                       justifyContent: "space-between",
+                      width: "100%",
                       alignItems: "center",
-                      backgroundColor: "#1e1e3088",
+                      backgroundColor: "rgba(255,255,255,0.1)",
                       padding: 18,
                       borderRadius: 12,
                       marginBottom: 10,
                       borderWidth: 1,
-                      borderColor: "#2a2a4e",
+                      borderColor: "rgba(255,255,255,0.2)",
                     }}
                   >
                     {editingIndex === index ? (
@@ -895,7 +932,7 @@ export default function Index() {
                             onChangeText={(text) => setEditInput(text)}
                             placeholderTextColor="#666"
                             style={{
-                              backgroundColor: "#2a2a4e",
+                              backgroundColor: "rgba(255,255,255,0.15)",
                               color: "#fff",
                               padding: 12,
                               borderRadius: 8,
@@ -920,8 +957,8 @@ export default function Index() {
                                 style={{
                                   backgroundColor:
                                     selectedCategory === cat.label
-                                      ? "#0077b6"
-                                      : "#2a2a4e",
+                                      ? "#ff6b35"
+                                      : "rgba(255,255,255,0.15)",
                                   paddingHorizontal: 18,
                                   paddingVertical: 12,
                                   borderRadius: 20,
@@ -1008,7 +1045,7 @@ export default function Index() {
                           <TouchableOpacity
                             onPress={() => startEdit(index)}
                             style={{
-                              backgroundColor: "#0096c7",
+                              backgroundColor: "#ff6b35",
                               paddingHorizontal: 20,
                               paddingVertical: 12,
                               borderRadius: 50,
@@ -1039,7 +1076,7 @@ export default function Index() {
                   </View>
                 ))}
             </View>
-          </View>
+          </BlurView>
         </ScrollView>
       </SafeAreaView>
     </View>
