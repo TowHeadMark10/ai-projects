@@ -99,7 +99,7 @@ export default function Index() {
           content: {
             title: isBreak ? "Break over! 💼" : "🍅 Pomodoro complete!",
             body: isBreak ? "Time to focus." : "Time for a break.",
-            sound: isBreak ? "alarm.mp3" : "chime.mp3",
+            sound: "alarm.mp3",
             categoryIdentifier: "timer",
           },
           trigger: {
