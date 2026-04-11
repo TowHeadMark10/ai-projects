@@ -98,6 +98,13 @@ export default function Index() {
   const bubble2Opacity = useRef(new Animated.Value(0)).current;
   const bubble3Opacity = useRef(new Animated.Value(0)).current;
   const bubble4Opacity = useRef(new Animated.Value(0)).current;
+  // Seaweed sway animations
+  const seaweed1Sway = useRef(new Animated.Value(0)).current;
+  const seaweed2Sway = useRef(new Animated.Value(0)).current;
+  const seaweed3Sway = useRef(new Animated.Value(0)).current;
+  const seaweed4Sway = useRef(new Animated.Value(0)).current;
+  const seaweed5Sway = useRef(new Animated.Value(0)).current;
+  const seaweed6Sway = useRef(new Animated.Value(0)).current;
   // Whether focus mode is enabled (pauses timer when leaving app)
   const [focusMode, setFocusMode] = useState(false);
   // Whether timer sounds are muted
@@ -382,6 +389,44 @@ export default function Index() {
     riseBubble(bubble4Y, bubble4Opacity, 3500);
   }, []);
 
+  useEffect(() => {
+    // Each seaweed starts swaying at a different delay for a natural staggered look
+    const startSway = (
+      anim: Animated.Value,
+      duration: number,
+      delay: number,
+    ) => {
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: duration / 2,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: -1,
+              duration,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: 0,
+              duration: duration / 2,
+              useNativeDriver: true,
+            }),
+          ]),
+        ),
+      ]).start();
+    };
+    startSway(seaweed1Sway, 2000, 0);
+    startSway(seaweed2Sway, 2400, 500);
+    startSway(seaweed3Sway, 1800, 250);
+    startSway(seaweed4Sway, 2200, 750);
+    startSway(seaweed5Sway, 1700, 350);
+    startSway(seaweed6Sway, 2100, 900);
+  }, []);
+
   // Converts seconds to MM:SS format. padStart(2,"0") makes sure it always has two digits - so it shows 04:05 and not 4:5
   function formatTime(s: number) {
     const m = Math.floor(s / 60);
@@ -511,7 +556,7 @@ export default function Index() {
         style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       >
         {/* Water — crystal aqua blue */}
-        <View style={{ flex: 1, backgroundColor: "#06b6d4" }} />
+        <View style={{ flex: 1, backgroundColor: "#0077b6" }} />
         {/* Sand at the bottom */}
         <View
           style={{
@@ -539,63 +584,1683 @@ export default function Index() {
           }}
         />
       </View>
-      {/* Rock 1 - left side */}
+      {/* Rock cluster - left side */}
       <View
         style={{
           position: "absolute",
-          bottom: 45,
-          left: 30,
+          bottom: 60,
+          left: 20,
+          width: 55,
+          height: 28,
+          backgroundColor: "#8a9db5",
+          borderRadius: 22,
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          left: 12,
+          width: 30,
+          height: 16,
+          backgroundColor: "#6b8299",
+          borderRadius: 12,
+        }}
+      />
+      {/* Rock cluster - right side */}
+      <View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          right: 20,
           width: 50,
-          height: 35,
-          backgroundColor: "#6b6b6b",
+          height: 24,
+          backgroundColor: "#8a9db5",
           borderRadius: 20,
         }}
       />
-      {/* Rock 2 - right side, smaller */}
       <View
         style={{
           position: "absolute",
-          bottom: 42,
-          right: 50,
+          bottom: 60,
+          right: 12,
+          width: 28,
+          height: 14,
+          backgroundColor: "#6b8299",
+          borderRadius: 10,
+        }}
+      />
+      <View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          right: 48,
           width: 35,
-          height: 25,
-          backgroundColor: "#555555",
+          height: 18,
+          backgroundColor: "#8a9db5",
           borderRadius: 15,
         }}
       />
-      {/* Rock 3 - right side, behind rock 2 */}
-      <View
+
+      {/* Seaweed 1 - very tall, left side */}
+      <Animated.View
         style={{
           position: "absolute",
-          bottom: 48,
-          right: 30,
-          width: 45,
-          height: 30,
-          backgroundColor: "#4a4a4a",
-          borderRadius: 18,
+          bottom: 58,
+          left: 40,
+          width: 44,
+          height: 170,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed1Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
         }}
-      />
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 19,
+            width: 6,
+            height: 170,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 8,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 15,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 8,
+            width: 15,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 20,
+            width: 13,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 8,
+            width: 13,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 20,
+            width: 11,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 8,
+            width: 11,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 20,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 8,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 20,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 8,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 20,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 8,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 220,
+            left: 20,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 235,
+            left: 8,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 250,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 265,
+            left: 8,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 280,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 295,
+            left: 8,
+            width: 4,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 310,
+            left: 20,
+            width: 4,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
 
-      {/* Plant 1 - left, tall */}
-      <View style={{ position: "absolute", bottom: 55, left: 20 }}>
-        <Text style={{ fontSize: 40 }}>🌿</Text>
-      </View>
-      {/* Plant 2 - left, shorter */}
-      <View style={{ position: "absolute", bottom: 52, left: 55 }}>
-        <Text style={{ fontSize: 28 }}>🌱</Text>
-      </View>
-      {/* Plant 3 - right */}
-      <View style={{ position: "absolute", bottom: 55, right: 20 }}>
-        <Text style={{ fontSize: 36 }}>🪸 </Text>
-      </View>
-      {/* Plant 4 - right, behind */}
-      <View style={{ position: "absolute", bottom: 52, right: 55 }}>
-        <Text style={{ fontSize: 28 }}>🌿</Text>
-      </View>
+      {/* Seaweed 2 - medium-tall, left side */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          left: 88,
+          width: 40,
+          height: 130,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed2Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 17,
+            width: 6,
+            height: 130,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 3,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 4,
+            width: 12,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 20,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 5,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 20,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 5,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 20,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 5,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 20,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 6,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 20,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 6,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 220,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 235,
+            left: 6,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
 
-      {/* Castle decoration - center */}
-      <View style={{ position: "absolute", bottom: 58, left: "43%" }}>
-        <Text style={{ fontSize: 32 }}>🏰</Text>
+      {/* Seaweed 3 - very tall, right side */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          right: 40,
+          width: 44,
+          height: 160,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed3Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 19,
+            width: 6,
+            height: 160,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 3,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 4,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 20,
+            width: 12,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 5,
+            width: 12,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 20,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 6,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 20,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 7,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 20,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 7,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 20,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 7,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 220,
+            left: 20,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 235,
+            left: 8,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 250,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 265,
+            left: 8,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 280,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 293,
+            left: 8,
+            width: 4,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 4 - medium-tall, right side */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          right: 88,
+          width: 40,
+          height: 120,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed4Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 17,
+            width: 6,
+            height: 120,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 3,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 12,
+            height: 5,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 4,
+            width: 12,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 22,
+            width: 10,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 5,
+            width: 10,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 22,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 5,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 22,
+            width: 8,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 5,
+            width: 8,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 22,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 6,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 22,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 6,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 5 - small, far left */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          left: 0,
+          width: 34,
+          height: 90,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed5Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 14,
+            width: 5,
+            height: 90,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 19,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 8,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 19,
+            width: 10,
+            height: 5,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 8,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 18,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 8,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 18,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 8,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 128,
+            left: 18,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 6 - small, far right */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          right: 0,
+          width: 34,
+          height: 90,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed6Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 14,
+            width: 5,
+            height: 90,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 19,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 8,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 19,
+            width: 10,
+            height: 5,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 8,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 18,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 8,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 18,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 8,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 128,
+            left: 18,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Castle - center, bigger */}
+      <View style={{ position: "absolute", bottom: 53, left: "43%" }}>
+        <Text style={{ fontSize: 68 }}>🏰</Text>
       </View>
       {/* Bubbles rising from the bottom */}
       <Animated.View
@@ -612,9 +2277,9 @@ export default function Index() {
             width: 14,
             height: 14,
             borderRadius: 7,
-            backgroundColor: "#90e0ef55",
+            backgroundColor: "#70C3B1",
             borderWidth: 1,
-            borderColor: "#90e0ef99",
+            borderColor: "#70C3B1",
           }}
         />
       </Animated.View>
@@ -633,9 +2298,9 @@ export default function Index() {
             width: 20,
             height: 20,
             borderRadius: 10,
-            backgroundColor: "#90e0ef33",
+            backgroundColor: "#70C3B1",
             borderWidth: 1,
-            borderColor: "#90e0ef88",
+            borderColor: "#70C3B1",
           }}
         />
       </Animated.View>
@@ -654,9 +2319,9 @@ export default function Index() {
             width: 10,
             height: 10,
             borderRadius: 5,
-            backgroundColor: "#90e0ef44",
+            backgroundColor: "#70C3B1",
             borderWidth: 1,
-            borderColor: "#90e0ef77",
+            borderColor: "#70C3B1",
           }}
         />
       </Animated.View>
@@ -675,9 +2340,9 @@ export default function Index() {
             width: 16,
             height: 16,
             borderRadius: 8,
-            backgroundColor: "#90e0ef33",
+            backgroundColor: "#70C3B1",
             borderWidth: 1,
-            borderColor: "#90e0ef88",
+            borderColor: "#70C3B1",
           }}
         />
       </Animated.View>
