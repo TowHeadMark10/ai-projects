@@ -2461,7 +2461,19 @@ export default function Index() {
                 onPress={() => router.push("/settings" as any)}
                 style={{ position: "absolute", right: 0 }}
               >
-                <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
+                <View
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    borderRadius: 20,
+                    padding: 8,
+                  }}
+                >
+                  <Ionicons
+                    name="settings-outline"
+                    size={20}
+                    color="rgba(255,255,255,0.9)"
+                  />
+                </View>
               </TouchableOpacity>
             </View>
 
