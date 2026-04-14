@@ -133,6 +133,8 @@ export default function Index() {
       x: Animated.Value;
       scaleX: Animated.Value;
       y: number;
+      // Vertical drift for natural swimming bob (animated separately from y)
+      yDrift: Animated.Value;
     }[]
   >([]);
   // Counter to assign unique IDs to each fish
@@ -180,11 +182,13 @@ export default function Index() {
           id: fishIdRef.current++,
           emoji: type.emoji,
           size: type.size,
-          speed: type.speed,
+          speed: type.speed * (0.7 + Math.random() * 0.6),
           x: new Animated.Value(-50),
           scaleX: new Animated.Value(-1),
           // Random vertical position in the water (not too close to sand or top)
           y: Math.random() * 400 + 80,
+          // Starts at 0 — will oscillate up/down in swimNewFish
+          yDrift: new Animated.Value(0),
         };
 
         swimNewFish(newFish);
@@ -498,7 +502,26 @@ export default function Index() {
     x: Animated.Value;
     scaleX: Animated.Value;
     speed: number;
+    yDrift: Animated.Value;
   }) {
+    // Gentle vertical bob: each fish drifts ±8px with its own random timing
+    // so no two fish oscillate in sync
+    const bobDuration = 1200 + Math.random() * 1000;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(fish.yDrift, {
+          toValue: -8,
+          duration: bobDuration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fish.yDrift, {
+          toValue: 8,
+          duration: bobDuration,
+          useNativeDriver: true,
+        }),
+      ]),
+      { resetBeforeIteration: false },
+    ).start();
     // Face right and swim to the end
     fish.scaleX.setValue(-1);
     Animated.timing(fish.x, {
@@ -2387,7 +2410,11 @@ export default function Index() {
               position: "absolute",
               top: fish.y,
               fontSize: fish.size,
-              transform: [{ translateX: fish.x }, { scaleX: fish.scaleX }],
+              transform: [
+                { translateX: fish.x },
+                { scaleX: fish.scaleX },
+                { translateY: fish.yDrift },
+              ],
             }}
           >
             {fish.emoji}
