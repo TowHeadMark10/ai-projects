@@ -83,6 +83,9 @@ export default function Index() {
   const isRunningRef = useRef(false);
   // Always holds the latest value of seconds (for use inside callbacks)
   const secondsRef = useRef(seconds);
+  // Crab walking animation
+  const crabX = useRef(new Animated.Value(0)).current;
+  const crabScale = useRef(new Animated.Value(-1)).current;
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -439,6 +442,26 @@ export default function Index() {
     startSway(seaweed6Sway, 2100, 900);
   }, []);
 
+  // Crab walks right toward seaweed then back to castle on loop
+  useEffect(() => {
+    const walkCrab = () => {
+      crabScale.setValue(1);
+      Animated.timing(crabX, {
+        toValue: 100,
+        duration: 4000,
+        useNativeDriver: true,
+      }).start(() => {
+        crabScale.setValue(-1);
+        Animated.timing(crabX, {
+          toValue: 0,
+          duration: 4000,
+          useNativeDriver: true,
+        }).start(walkCrab);
+      });
+    };
+    walkCrab();
+  }, []);
+
   // Converts seconds to MM:SS format. padStart(2,"0") makes sure it always has two digits - so it shows 04:05 and not 4:5
   function formatTime(s: number) {
     const m = Math.floor(s / 60);
@@ -606,62 +629,20 @@ export default function Index() {
         />
       </View>
       {/* Rock cluster - left side */}
-      <View
-        style={{
-          position: "absolute",
-          bottom: 60,
-          left: 20,
-          width: 55,
-          height: 28,
-          backgroundColor: "#8a9db5",
-          borderRadius: 22,
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          bottom: 58,
-          left: 12,
-          width: 30,
-          height: 16,
-          backgroundColor: "#6b8299",
-          borderRadius: 12,
-        }}
-      />
+      <View style={{ position: "absolute", bottom: 53, left: 4 }}>
+        <Text style={{ fontSize: 44 }}>🪨</Text>
+      </View>
+      <View style={{ position: "absolute", bottom: 53, left: 40 }}>
+        <Text style={{ fontSize: 26 }}>🪨</Text>
+      </View>
+
       {/* Rock cluster - right side */}
-      <View
-        style={{
-          position: "absolute",
-          bottom: 60,
-          right: 20,
-          width: 50,
-          height: 24,
-          backgroundColor: "#8a9db5",
-          borderRadius: 20,
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          bottom: 60,
-          right: 12,
-          width: 28,
-          height: 14,
-          backgroundColor: "#6b8299",
-          borderRadius: 10,
-        }}
-      />
-      <View
-        style={{
-          position: "absolute",
-          bottom: 60,
-          right: 48,
-          width: 35,
-          height: 18,
-          backgroundColor: "#8a9db5",
-          borderRadius: 15,
-        }}
-      />
+      <View style={{ position: "absolute", bottom: 53, right: 4 }}>
+        <Text style={{ fontSize: 44 }}>🪨</Text>
+      </View>
+      <View style={{ position: "absolute", bottom: 53, right: 40 }}>
+        <Text style={{ fontSize: 26 }}>🪨</Text>
+      </View>
 
       {/* Seaweed 1 - very tall, left side */}
       <Animated.View
@@ -2283,6 +2264,26 @@ export default function Index() {
       <View style={{ position: "absolute", bottom: 53, left: "43%" }}>
         <Text style={{ fontSize: 68 }}>🏰</Text>
       </View>
+      {/* Shell - left of castle */}
+      <View style={{ position: "absolute", bottom: 53, left: 70 }}>
+        <Text style={{ fontSize: 20 }}>🐚</Text>
+      </View>
+      {/* Crab - walks from castle right side toward right seaweed */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 55,
+          left: "45%",
+          transform: [{ translateX: crabX }],
+        }}
+      >
+        <Animated.Text
+          style={{ fontSize: 28, transform: [{ scaleX: crabScale }] }}
+        >
+          🦀
+        </Animated.Text>
+      </Animated.View>
+
       {/* Bubbles rising from the bottom */}
       <Animated.View
         style={{
