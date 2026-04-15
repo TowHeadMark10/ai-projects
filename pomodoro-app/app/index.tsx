@@ -26,6 +26,17 @@ import { SafeAreaView } from "react-native-safe-area-context";
 
 // Get screen height once so fish can spawn across the full aquarium
 const SCREEN_HEIGHT = Dimensions.get("window").height;
+// Get screen width for arena
+const SCREEN_WIDTH = Dimensions.get("window").width;
+
+// Pre-generated sand texture pixels — fixed positions give a consistent
+// Minecraft-style speckled look without re-rendering differently each time
+const SAND_PIXELS = Array.from({ length: 110 }, (_, i) => ({
+  left: (i * 53 + 17) % SCREEN_WIDTH,
+  bottom: ((i * 41 + 7) % 48) + 4,
+  size: 2 + (i % 3),
+  color: ["#f5e6a3", "#e8d084", "#c0a050", "#d4b462", "#a88840"][i % 5],
+}));
 
 // Default times in seconds
 const DEFAULT_WORK = 25 * 60;
@@ -184,8 +195,12 @@ export default function Index() {
               0,
               Math.max(1, maxTypeIndex + 1),
             );
-            const type =
-              availableTypes[Math.floor(Math.random() * availableTypes.length)];
+            // 60% chance to pick from the 2 most recently unlocked types so
+            // bigger fish actually appear as they unlock, while still allowing
+            // smaller fish to show up occasionally for variety
+            const recentTypes = availableTypes.slice(-2);
+            const pool = Math.random() < 0.6 ? recentTypes : availableTypes;
+            const type = pool[Math.floor(Math.random() * pool.length)];
 
             const newFish = {
               id: fishIdRef.current++,
@@ -639,7 +654,7 @@ export default function Index() {
       >
         {/* Water — crystal aqua blue */}
         <View style={{ flex: 1, backgroundColor: "#0077b6" }} />
-        {/* Sand at the bottom */}
+        {/* Sand at the bottom — base layer, warm golden tone */}
         <View
           style={{
             position: "absolute",
@@ -647,24 +662,41 @@ export default function Index() {
             left: 0,
             right: 0,
             height: 60,
-            backgroundColor: "#c2a46e",
+            backgroundColor: "#e0b96a",
             borderTopLeftRadius: 20,
             borderTopRightRadius: 20,
           }}
         />
-        {/* Darker sand stripe */}
+        {/* Sand shadow — darker tone at the very bottom for depth */}
         <View
           style={{
             position: "absolute",
             bottom: 0,
             left: 0,
             right: 0,
-            height: 30,
-            backgroundColor: "#a8895a",
+            height: 28,
+            backgroundColor: "#b8904a",
             borderTopLeftRadius: 12,
             borderTopRightRadius: 12,
           }}
         />
+        {/* Sand texture — pixel-art style speckles simulating Minecraft
+  sand */}
+        {SAND_PIXELS.map((dot, i) => (
+          <View
+            key={i}
+            style={{
+              position: "absolute",
+              bottom: dot.bottom,
+              left: dot.left,
+              width: dot.size,
+              height: dot.size,
+              backgroundColor: dot.color,
+              borderRadius: dot.size / 2,
+              opacity: 0.6,
+            }}
+          />
+        ))}
       </View>
       {/* Rock cluster - left side */}
       <View style={{ position: "absolute", bottom: 53, left: 4 }}>
@@ -2496,9 +2528,26 @@ export default function Index() {
                     {isBreak ? "BREAK" : "FOCUS"}
                   </Text>
                 </View>
-                <Text style={{ color: "#fff", fontSize: 16 }}>
-                  🍅 {pomodoroCount}
-                </Text>
+                {/* Pomodoro counter — styled as a pill badge matching the
+  FOCUS/BREAK badge */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    borderRadius: 20,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 14 }}>🍅</Text>
+                  <Text
+                    style={{ color: "#fff", fontSize: 14, fontWeight: "bold" }}
+                  >
+                    {pomodoroCount}
+                  </Text>
+                </View>
               </View>
               <TouchableOpacity
                 onPress={() => router.push("/settings" as any)}
