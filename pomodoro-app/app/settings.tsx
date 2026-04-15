@@ -1,5 +1,11 @@
 import { useEffect, useState } from "react";
-import { Text, View, TouchableOpacity, ScrollView } from "react-native";
+import {
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+} from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -19,6 +25,9 @@ export default function Settings() {
   const [focusMode, setFocusMode] = useState(false);
   // Whether sound is muted
   const [muted, setMuted] = useState(false);
+  // Holds the raw text while the user is manually typing (null = not editing)
+  const [editWorkText, setEditWorkText] = useState<string | null>(null);
+  const [editBreakText, setEditBreakText] = useState<string | null>(null);
 
   // Load saved values when the screen opens
   useEffect(() => {
@@ -135,9 +144,43 @@ export default function Settings() {
             >
               <Text style={{ color: "#fff", fontSize: 20 }}>−</Text>
             </TouchableOpacity>
-            <Text style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}>
-              {workMinutes} min
-            </Text>
+            {editWorkText !== null ? (
+              <TextInput
+                style={{
+                  color: "#fff",
+                  fontSize: 32,
+                  fontWeight: "bold",
+                  minWidth: 80,
+                  textAlign: "center",
+                }}
+                value={editWorkText}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                autoFocus
+                onChangeText={setEditWorkText}
+                onBlur={() => {
+                  const n = parseInt(editWorkText);
+                  if (!isNaN(n)) setWorkMinutes(Math.min(60, Math.max(1, n)));
+                  setEditWorkText(null);
+                }}
+                onSubmitEditing={() => {
+                  const n = parseInt(editWorkText);
+                  if (!isNaN(n)) setWorkMinutes(Math.min(60, Math.max(1, n)));
+                  setEditWorkText(null);
+                }}
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={() => setEditWorkText(String(workMinutes))}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}
+                >
+                  {workMinutes}
+                  min
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => setWorkMinutes((m) => Math.min(60, m + 1))}
               style={{
@@ -191,9 +234,42 @@ export default function Settings() {
             >
               <Text style={{ color: "#fff", fontSize: 20 }}>−</Text>
             </TouchableOpacity>
-            <Text style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}>
-              {breakMinutes} min
-            </Text>
+            {editBreakText !== null ? (
+              <TextInput
+                style={{
+                  color: "#fff",
+                  fontSize: 32,
+                  fontWeight: "bold",
+                  minWidth: 80,
+                  textAlign: "center",
+                }}
+                value={editBreakText}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                autoFocus
+                onChangeText={setEditBreakText}
+                onBlur={() => {
+                  const n = parseInt(editBreakText);
+                  if (!isNaN(n)) setBreakMinutes(Math.min(30, Math.max(1, n)));
+                  setEditBreakText(null);
+                }}
+                onSubmitEditing={() => {
+                  const n = parseInt(editBreakText);
+                  if (!isNaN(n)) setBreakMinutes(Math.min(30, Math.max(1, n)));
+                  setEditBreakText(null);
+                }}
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={() => setEditBreakText(String(breakMinutes))}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}
+                >
+                  {breakMinutes} min
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => setBreakMinutes((m) => Math.min(30, m + 1))}
               style={{
