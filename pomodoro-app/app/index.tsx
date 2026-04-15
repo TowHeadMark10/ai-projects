@@ -167,42 +167,53 @@ export default function Index() {
         useNativeDriver: true,
       }).start();
 
-      // Spawn a new fish every 8 seconds if under the limit
-      fishSpawnIntervalRef.current = setInterval(() => {
-        if (activeFishRef.current.length >= MAX_FISH) return;
+      // Spawn fish at a rate proportional to the total work time so they spread
+      // evenly across the whole session (e.g. 25min → ~1 fish every 75s)
+      const scheduleNextFish = () => {
+        // Base delay = total work time divided evenly among MAX_FISH slots
+        const baseDelay = (workTimeRef.current / MAX_FISH) * 1000;
+        // ±30% randomness so it feels natural, not mechanical
+        const delay = baseDelay * (0.7 + Math.random() * 0.6);
+        fishSpawnIntervalRef.current = setTimeout(() => {
+          if (activeFishRef.current.length < MAX_FISH) {
+            // Unlock more fish types as the timer progresses
+            // Early in session → only small fish; later → bigger/colorful ones
+            const progress = 1 - secondsRef.current / workTimeRef.current;
+            const maxTypeIndex = Math.floor(progress * FISH_TYPES.length);
+            const availableTypes = FISH_TYPES.slice(
+              0,
+              Math.max(1, maxTypeIndex + 1),
+            );
+            const type =
+              availableTypes[Math.floor(Math.random() * availableTypes.length)];
 
-        // Unlock more fish types as the timer progresses
-        // Early in session → only small fish; later → bigger/colorful ones
-        const progress = 1 - secondsRef.current / workTimeRef.current;
-        const maxTypeIndex = Math.floor(progress * FISH_TYPES.length);
-        const availableTypes = FISH_TYPES.slice(
-          0,
-          Math.max(1, maxTypeIndex + 1),
-        );
-        const type =
-          availableTypes[Math.floor(Math.random() * availableTypes.length)];
+            const newFish = {
+              id: fishIdRef.current++,
+              emoji: type.emoji,
+              size: type.size,
+              // ±30% speed variation so same-type fish don't move in lockstep
+              speed: type.speed * (0.7 + Math.random() * 0.6),
+              x: new Animated.Value(-50),
+              scaleX: new Animated.Value(-1),
+              // Spawn anywhere from near the top down to near the sand
+              y: Math.random() * (SCREEN_HEIGHT - 60) + 20,
+              // Starts at 0 — will oscillate up/down in swimNewFish
+              yDrift: new Animated.Value(0),
+            };
 
-        const newFish = {
-          id: fishIdRef.current++,
-          emoji: type.emoji,
-          size: type.size,
-          speed: type.speed * (0.7 + Math.random() * 0.6),
-          x: new Animated.Value(-50),
-          scaleX: new Animated.Value(-1),
-          // Spawn anywhere from near the top down to near the sand (leaving ~120px for decorations)
-          y: Math.random() * (SCREEN_HEIGHT - 120) + 20,
-          // Starts at 0 — will oscillate up/down in swimNewFish
-          yDrift: new Animated.Value(0),
-        };
-
-        swimNewFish(newFish);
-        setActiveFish((prev) => [...prev, newFish]);
-      }, 8000);
+            swimNewFish(newFish);
+            setActiveFish((prev) => [...prev, newFish]);
+          }
+          // Schedule the next fish regardless of whether one was spawned
+          scheduleNextFish();
+        }, delay) as unknown as ReturnType<typeof setInterval>;
+      };
+      scheduleNextFish();
     } else {
-      clearInterval(fishSpawnIntervalRef.current!);
+      clearTimeout(fishSpawnIntervalRef.current!);
     }
 
-    return () => clearInterval(fishSpawnIntervalRef.current!);
+    return () => clearTimeout(fishSpawnIntervalRef.current!);
   }, [isRunning]);
 
   // Start or stop the interval whenever isRunning changes
