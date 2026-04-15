@@ -3,6 +3,7 @@ import { Text, View, TouchableOpacity, ScrollView } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 // Default times in minutes
 const DEFAULT_WORK = 25;
@@ -58,16 +59,44 @@ export default function Settings() {
           paddingHorizontal: 24,
         }}
       >
-        <Text
+        {/* Header row with back button and title */}
+        <View
           style={{
-            color: "#ffffff",
-            fontSize: 24,
-            fontWeight: "bold",
+            width: "100%",
+            maxWidth: 400,
+            flexDirection: "row",
+            alignItems: "center",
             marginBottom: 32,
           }}
         >
-          Settings
-        </Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <View
+              style={{
+                backgroundColor: "rgba(255,255,255,0.15)",
+                borderRadius: 20,
+                padding: 8,
+              }}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color="rgba(255,255,255,0.9)"
+              />
+            </View>
+          </TouchableOpacity>
+          <Text
+            style={{
+              color: "#ffffff",
+              fontSize: 24,
+              fontWeight: "bold",
+              flex: 1,
+              textAlign: "center",
+              marginRight: 36,
+            }}
+          >
+            Settings
+          </Text>
+        </View>
 
         {/* Work time control */}
         <View style={{ width: "100%", maxWidth: 400, marginBottom: 24 }}>
