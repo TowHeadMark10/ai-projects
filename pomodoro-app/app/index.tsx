@@ -2,6 +2,7 @@ import { Audio } from "expo-av";
 import * as Notifications from "expo-notifications";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { BlurView } from "expo-blur";
+import { Dimensions } from "react-native";
 import Swipeable, {
   SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
@@ -22,6 +23,9 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+// Get screen height once so fish can spawn across the full aquarium
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 
 // Default times in seconds
 const DEFAULT_WORK = 25 * 60;
@@ -185,8 +189,8 @@ export default function Index() {
           speed: type.speed * (0.7 + Math.random() * 0.6),
           x: new Animated.Value(-50),
           scaleX: new Animated.Value(-1),
-          // Random vertical position in the water (not too close to sand or top)
-          y: Math.random() * 400 + 80,
+          // Spawn anywhere from near the top down to near the sand (leaving ~120px for decorations)
+          y: Math.random() * (SCREEN_HEIGHT - 120) + 20,
           // Starts at 0 — will oscillate up/down in swimNewFish
           yDrift: new Animated.Value(0),
         };
