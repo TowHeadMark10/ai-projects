@@ -1,11 +1,15 @@
-import { useEffect, useState } from "react";
+import { useEffect, useState, useRef } from "react";
 import {
   Text,
   View,
   TouchableOpacity,
   ScrollView,
   TextInput,
+  Animated,
+  Dimensions,
 } from "react-native";
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
@@ -28,6 +32,54 @@ export default function Settings() {
   // Holds the raw text while the user is manually typing (null = not editing)
   const [editWorkText, setEditWorkText] = useState<string | null>(null);
   const [editBreakText, setEditBreakText] = useState<string | null>(null);
+
+  // Bubble animations — each bubble rises independently with its own timing
+  const bubble1Y = useRef(new Animated.Value(0)).current;
+  const bubble1Opacity = useRef(new Animated.Value(0)).current;
+  const bubble2Y = useRef(new Animated.Value(0)).current;
+  const bubble2Opacity = useRef(new Animated.Value(0)).current;
+  const bubble3Y = useRef(new Animated.Value(0)).current;
+  const bubble3Opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animates a single bubble: fade in, rise up, fade out, then loop
+    const animateBubble = (
+      translateY: Animated.Value,
+      opacity: Animated.Value,
+      delay: number,
+      duration: number,
+    ) => {
+      const loop = () => {
+        translateY.setValue(0);
+        opacity.setValue(0);
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.parallel([
+            Animated.timing(opacity, {
+              toValue: 0.6,
+              duration: 400,
+              useNativeDriver: true,
+            }),
+            Animated.timing(translateY, {
+              toValue: -SCREEN_HEIGHT,
+              duration,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(loop);
+      };
+      loop();
+    };
+
+    animateBubble(bubble1Y, bubble1Opacity, 0, 4000);
+    animateBubble(bubble2Y, bubble2Opacity, 1500, 5000);
+    animateBubble(bubble3Y, bubble3Opacity, 3000, 3500);
+  }, []);
 
   // Load saved values when the screen opens
   useEffect(() => {
@@ -435,6 +487,65 @@ export default function Settings() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Decorative bubbles rising from the bottom — aquarium theme */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 20,
+          left: "20%",
+          opacity: bubble1Opacity,
+          transform: [{ translateY: bubble1Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
+          }}
+        />
+      </Animated.View>
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 10,
+          left: "50%",
+          opacity: bubble2Opacity,
+          transform: [{ translateY: bubble2Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 4,
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
+          }}
+        />
+      </Animated.View>
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 15,
+          left: "75%",
+          opacity: bubble3Opacity,
+          transform: [{ translateY: bubble3Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 6,
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
+          }}
+        />
+      </Animated.View>
     </SafeAreaView>
   );
 }
