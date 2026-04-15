@@ -48,7 +48,8 @@ export default function Settings() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
+    // Aquarium blue background to match the main screen
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0077b6" }}>
       <ScrollView
         contentContainerStyle={{
           alignItems: "center",
@@ -72,7 +73,7 @@ export default function Settings() {
         <View style={{ width: "100%", maxWidth: 400, marginBottom: 24 }}>
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -85,17 +86,17 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <TouchableOpacity
               onPress={() => setWorkMinutes((m) => Math.max(1, m - 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -111,7 +112,7 @@ export default function Settings() {
             <TouchableOpacity
               onPress={() => setWorkMinutes((m) => Math.min(60, m + 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -128,7 +129,7 @@ export default function Settings() {
         <View style={{ width: "100%", maxWidth: 400, marginBottom: 32 }}>
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -141,17 +142,17 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <TouchableOpacity
               onPress={() => setBreakMinutes((m) => Math.max(1, m - 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -167,7 +168,7 @@ export default function Settings() {
             <TouchableOpacity
               onPress={() => setBreakMinutes((m) => Math.min(30, m + 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -184,7 +185,7 @@ export default function Settings() {
         <View style={{ width: "100%", maxWidth: 400, marginBottom: 32 }}>
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -198,11 +199,11 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <Text style={{ color: "#e0e0e0", fontSize: 15 }}>
@@ -213,7 +214,9 @@ export default function Settings() {
                 width: 44,
                 height: 24,
                 borderRadius: 12,
-                backgroundColor: focusMode ? "#0077b6" : "#2a2a4e",
+                backgroundColor: focusMode
+                  ? "#e8622a"
+                  : "rgba(255,255,255,0.2)",
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -241,7 +244,7 @@ export default function Settings() {
         >
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -255,11 +258,11 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <Text style={{ color: "#e0e0e0", fontSize: 15 }}>
@@ -270,7 +273,7 @@ export default function Settings() {
                 width: 44,
                 height: 24,
                 borderRadius: 12,
-                backgroundColor: muted ? "#0077b6" : "#2a2a4e",
+                backgroundColor: muted ? "#e8622a" : "rgba(255,255,255,0.2)",
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -301,21 +304,19 @@ export default function Settings() {
             paddingVertical: 14,
             borderRadius: 50,
             borderWidth: 1,
-            borderColor: "#0077b6",
+            borderColor: "rgba(255,255,255,0.4)",
             alignItems: "center",
             marginBottom: 16,
           }}
         >
-          <Text style={{ color: "#00b4d8", fontSize: 16 }}>
-            Reset to defaults
-          </Text>
+          <Text style={{ color: "#fff", fontSize: 16 }}>Reset to defaults</Text>
         </TouchableOpacity>
 
         {/* Save button */}
         <TouchableOpacity
           onPress={saveAndGoBack}
           style={{
-            backgroundColor: "#0077b6",
+            backgroundColor: "#e8622a",
             paddingVertical: 14,
             paddingHorizontal: 48,
             borderRadius: 50,
