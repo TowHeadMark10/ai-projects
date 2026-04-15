@@ -1,6 +1,12 @@
 import { Audio } from "expo-av";
 import * as Notifications from "expo-notifications";
 import { useState, useEffect, useRef, useCallback } from "react";
+import { BlurView } from "expo-blur";
+import { Dimensions } from "react-native";
+import Swipeable, {
+  SwipeableMethods,
+} from "react-native-gesture-handler/ReanimatedSwipeable";
+import { Ionicons } from "@expo/vector-icons";
 import {
   Text,
   View,
@@ -9,10 +15,28 @@ import {
   ScrollView,
   Animated,
   AppState,
+  KeyboardAvoidingView,
+  Platform,
+  Modal,
+  Keyboard,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+
+// Get screen height once so fish can spawn across the full aquarium
+const SCREEN_HEIGHT = Dimensions.get("window").height;
+// Get screen width for arena
+const SCREEN_WIDTH = Dimensions.get("window").width;
+
+// Pre-generated sand texture pixels — fixed positions give a consistent
+// Minecraft-style speckled look without re-rendering differently each time
+const SAND_PIXELS = Array.from({ length: 110 }, (_, i) => ({
+  left: (i * 53 + 17) % SCREEN_WIDTH,
+  bottom: ((i * 41 + 7) % 48) + 4,
+  size: 2 + (i % 3),
+  color: ["#f5e6a3", "#e8d084", "#c0a050", "#d4b462", "#a88840"][i % 5],
+}));
 
 // Default times in seconds
 const DEFAULT_WORK = 25 * 60;
@@ -25,6 +49,17 @@ const CATEGORIES = [
   { label: "Health", emoji: "💪", color: "#2d9e5f" },
   { label: "Learning", emoji: "📚", color: "#c9a227" },
 ];
+const FISH_TYPES = [
+  { emoji: "🐟", size: 28, speed: 4000 }, // small, unlocks early
+  { emoji: "🐠", size: 34, speed: 3500 },
+  { emoji: "🐡", size: 32, speed: 4500 },
+  { emoji: "🦈", size: 44, speed: 3000 }, // big, unlocks later
+  { emoji: "🐙", size: 40, speed: 5000 },
+  { emoji: "🦑", size: 38, speed: 3800 },
+  { emoji: "🐬", size: 48, speed: 2800 }, // largest, unlocks at end
+  { emoji: "🐳", size: 54, speed: 2500 },
+];
+const MAX_FISH = 20;
 
 export default function Index() {
   // Hook to navigate between screens
@@ -63,24 +98,138 @@ export default function Index() {
   const isRunningRef = useRef(false);
   // Always holds the latest value of seconds (for use inside callbacks)
   const secondsRef = useRef(seconds);
+  // Crab walking animation
+  const crabX = useRef(new Animated.Value(0)).current;
+  const crabScale = useRef(new Animated.Value(-1)).current;
+
+  useEffect(() => {
+    secondsRef.current = seconds;
+  }, [seconds]);
+
+  // Always holds the latest work/break times (for use inside callbacks)
+  const workTimeRef = useRef(workTime);
+  useEffect(() => {
+    workTimeRef.current = workTime;
+  }, [workTime]);
   // Holds the ID of the scheduled notification so we can cancel it if needed
   const notificationIdRef = useRef<string | null>(null);
   // Stores the timestamp (ms) when the timer is expected to end
   const timerEndTimeRef = useRef<number | null>(null);
-  const workTimeRef = useRef(workTime);
   const breakTimeRef = useRef(breakTime);
-  // Fish positions — each fish swims independently
-  const fish1X = useRef(new Animated.Value(0)).current;
-  const fish2X = useRef(new Animated.Value(100)).current;
-  const fish3X = useRef(new Animated.Value(220)).current;
-  // Fish direction — 1 = facing right, -1 = facing left
-  const fish1Scale = useRef(new Animated.Value(1)).current;
-  const fish2Scale = useRef(new Animated.Value(1)).current;
-  const fish3Scale = useRef(new Animated.Value(1)).current;
+  // Bubble animations — each bubble rises independently
+  const bubble1Y = useRef(new Animated.Value(0)).current;
+  const bubble2Y = useRef(new Animated.Value(0)).current;
+  const bubble3Y = useRef(new Animated.Value(0)).current;
+  const bubble4Y = useRef(new Animated.Value(0)).current;
+  const bubble1Opacity = useRef(new Animated.Value(0)).current;
+  const bubble2Opacity = useRef(new Animated.Value(0)).current;
+  const bubble3Opacity = useRef(new Animated.Value(0)).current;
+  const bubble4Opacity = useRef(new Animated.Value(0)).current;
+  // Seaweed sway animations
+  const seaweed1Sway = useRef(new Animated.Value(0)).current;
+  const seaweed2Sway = useRef(new Animated.Value(0)).current;
+  const seaweed3Sway = useRef(new Animated.Value(0)).current;
+  const seaweed4Sway = useRef(new Animated.Value(0)).current;
+  const seaweed5Sway = useRef(new Animated.Value(0)).current;
+  const seaweed6Sway = useRef(new Animated.Value(0)).current;
+  // Ref for scrolling to edit form when keyboard opens
+  const taskScrollRef = useRef<ScrollView>(null);
   // Whether focus mode is enabled (pauses timer when leaving app)
   const [focusMode, setFocusMode] = useState(false);
   // Whether timer sounds are muted
   const [muted, setMuted] = useState(false);
+  // List of active fish currently in the tank
+  const [activeFish, setActiveFish] = useState<
+    {
+      id: number;
+      emoji: string;
+      size: number;
+      speed: number;
+      x: Animated.Value;
+      scaleX: Animated.Value;
+      y: number;
+      // Vertical drift for natural swimming bob (animated separately from y)
+      yDrift: Animated.Value;
+    }[]
+  >([]);
+  // Counter to assign unique IDs to each fish
+  const fishIdRef = useRef(0);
+  // Ref to the interval that spawns new fish
+  const fishSpawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
+    null,
+  );
+  const [swipeResetKey, setSwipeResetKey] = useState(0);
+  // Opacity for fade-out on reset
+  const fishContainerOpacity = useRef(new Animated.Value(1)).current;
+  // Always holds latest workTime for fish spawn calculations
+  const activeFishRef = useRef(activeFish);
+  useEffect(() => {
+    activeFishRef.current = activeFish;
+  }, [activeFish]);
+
+  // Spawn and despawn fish based on timer state
+  useEffect(() => {
+    if (isRunning) {
+      // Fade the fish container back in (in case it was faded out by reset)
+      fishContainerOpacity.stopAnimation();
+      Animated.timing(fishContainerOpacity, {
+        toValue: 1,
+        duration: 500,
+        useNativeDriver: true,
+      }).start();
+
+      // Spawn fish at a rate proportional to the total work time so they spread
+      // evenly across the whole session (e.g. 25min → ~1 fish every 75s)
+      const scheduleNextFish = () => {
+        // Base delay = total work time divided evenly among MAX_FISH slots
+        const baseDelay = (workTimeRef.current / MAX_FISH) * 1000;
+        // ±30% randomness so it feels natural, not mechanical
+        const delay = baseDelay * (0.7 + Math.random() * 0.6);
+        fishSpawnIntervalRef.current = setTimeout(() => {
+          if (activeFishRef.current.length < MAX_FISH) {
+            // Unlock more fish types as the timer progresses
+            // Early in session → only small fish; later → bigger/colorful ones
+            const progress = 1 - secondsRef.current / workTimeRef.current;
+            const maxTypeIndex = Math.floor(progress * FISH_TYPES.length);
+            const availableTypes = FISH_TYPES.slice(
+              0,
+              Math.max(1, maxTypeIndex + 1),
+            );
+            // 60% chance to pick from the 2 most recently unlocked types so
+            // bigger fish actually appear as they unlock, while still allowing
+            // smaller fish to show up occasionally for variety
+            const recentTypes = availableTypes.slice(-2);
+            const pool = Math.random() < 0.6 ? recentTypes : availableTypes;
+            const type = pool[Math.floor(Math.random() * pool.length)];
+
+            const newFish = {
+              id: fishIdRef.current++,
+              emoji: type.emoji,
+              size: type.size,
+              // ±30% speed variation so same-type fish don't move in lockstep
+              speed: type.speed * (0.7 + Math.random() * 0.6),
+              x: new Animated.Value(-50),
+              scaleX: new Animated.Value(-1),
+              // Spawn anywhere from near the top down to near the sand
+              y: Math.random() * (SCREEN_HEIGHT - 60) + 20,
+              // Starts at 0 — will oscillate up/down in swimNewFish
+              yDrift: new Animated.Value(0),
+            };
+
+            swimNewFish(newFish);
+            setActiveFish((prev) => [...prev, newFish]);
+          }
+          // Schedule the next fish regardless of whether one was spawned
+          scheduleNextFish();
+        }, delay) as unknown as ReturnType<typeof setInterval>;
+      };
+      scheduleNextFish();
+    } else {
+      clearTimeout(fishSpawnIntervalRef.current!);
+    }
+
+    return () => clearTimeout(fishSpawnIntervalRef.current!);
+  }, [isRunning]);
 
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
@@ -249,11 +398,102 @@ export default function Index() {
     return () => subscription.remove();
   }, [focusMode]);
 
-  // Start fish animations when the app loads
+  // Animates a single bubble rising from the bottom and fading out
+  function riseBubble(
+    bubbleY: Animated.Value,
+    bubbleOpacity: Animated.Value,
+    delay: number,
+  ) {
+    bubbleY.setValue(0);
+    bubbleOpacity.setValue(0);
+    Animated.sequence([
+      Animated.delay(delay),
+      Animated.parallel([
+        Animated.timing(bubbleY, {
+          toValue: -600,
+          duration: 4000,
+          useNativeDriver: true,
+        }),
+        Animated.sequence([
+          Animated.timing(bubbleOpacity, {
+            toValue: 0.6,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(bubbleOpacity, {
+            toValue: 0,
+            duration: 3500,
+            useNativeDriver: true,
+          }),
+        ]),
+      ]),
+    ]).start(() => riseBubble(bubbleY, bubbleOpacity, 0));
+  }
+
   useEffect(() => {
-    swimFish(fish1X, fish1Scale, 0);
-    swimFish(fish2X, fish2Scale, 100);
-    swimFish(fish3X, fish3Scale, 220);
+    // Start each bubble with a different delay so they don't all rise together
+    riseBubble(bubble1Y, bubble1Opacity, 0);
+    riseBubble(bubble2Y, bubble2Opacity, 1000);
+    riseBubble(bubble3Y, bubble3Opacity, 2200);
+    riseBubble(bubble4Y, bubble4Opacity, 3500);
+  }, []);
+
+  useEffect(() => {
+    // Each seaweed starts swaying at a different delay for a natural staggered look
+    const startSway = (
+      anim: Animated.Value,
+      duration: number,
+      delay: number,
+    ) => {
+      Animated.sequence([
+        Animated.delay(delay),
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(anim, {
+              toValue: 1,
+              duration: duration / 2,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: -1,
+              duration,
+              useNativeDriver: true,
+            }),
+            Animated.timing(anim, {
+              toValue: 0,
+              duration: duration / 2,
+              useNativeDriver: true,
+            }),
+          ]),
+        ),
+      ]).start();
+    };
+    startSway(seaweed1Sway, 2000, 0);
+    startSway(seaweed2Sway, 2400, 500);
+    startSway(seaweed3Sway, 1800, 250);
+    startSway(seaweed4Sway, 2200, 750);
+    startSway(seaweed5Sway, 1700, 350);
+    startSway(seaweed6Sway, 2100, 900);
+  }, []);
+
+  // Crab walks right toward seaweed then back to castle on loop
+  useEffect(() => {
+    const walkCrab = () => {
+      crabScale.setValue(1);
+      Animated.timing(crabX, {
+        toValue: 100,
+        duration: 4000,
+        useNativeDriver: true,
+      }).start(() => {
+        crabScale.setValue(-1);
+        Animated.timing(crabX, {
+          toValue: 0,
+          duration: 4000,
+          useNativeDriver: true,
+        }).start(walkCrab);
+      });
+    };
+    walkCrab();
   }, []);
 
   // Converts seconds to MM:SS format. padStart(2,"0") makes sure it always has two digits - so it shows 04:05 and not 4:5
@@ -268,6 +508,15 @@ export default function Index() {
     setIsRunning(false);
     setisBreak(false);
     setSeconds(workTime);
+    // Stop any ongoing opacity animation before starting fade-out
+    fishContainerOpacity.stopAnimation();
+    Animated.timing(fishContainerOpacity, {
+      toValue: 0,
+      duration: 800,
+      useNativeDriver: true,
+    }).start(() => {
+      setActiveFish([]);
+    });
   }
 
   // Skips the break and goes back to work mode immediately
@@ -275,6 +524,54 @@ export default function Index() {
     setisBreak(false); // returns to work mode
     setIsRunning(false); // pauses the timer so the user can start it whenever they want
     setSeconds(workTime); // loads the 25 mins again
+  }
+
+  // Animates a fish swimming across the screen and removes it when done
+  function swimNewFish(fish: {
+    id: number;
+    x: Animated.Value;
+    scaleX: Animated.Value;
+    speed: number;
+    yDrift: Animated.Value;
+  }) {
+    // Gentle vertical bob: each fish drifts ±8px with its own random timing
+    // so no two fish oscillate in sync
+    const bobDuration = 1200 + Math.random() * 1000;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(fish.yDrift, {
+          toValue: -8,
+          duration: bobDuration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fish.yDrift, {
+          toValue: 8,
+          duration: bobDuration,
+          useNativeDriver: true,
+        }),
+      ]),
+      { resetBeforeIteration: false },
+    ).start();
+    // Face right and swim to the end
+    fish.scaleX.setValue(-1);
+    Animated.timing(fish.x, {
+      toValue: 400,
+      duration: fish.speed,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      // Face left and swim back
+      fish.scaleX.setValue(1);
+      Animated.timing(fish.x, {
+        toValue: -50,
+        duration: fish.speed,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
+        if (!finished) return;
+        // Loop forever
+        swimNewFish(fish);
+      });
+    });
   }
 
   // Plays a soft chime sound when work session ends
@@ -306,6 +603,8 @@ export default function Index() {
     const category = filterCategory ?? "Work";
     setTasks([...tasks, { title: taskInput.trim(), done: false, category }]);
     setTaskInput("");
+    // Dismiss keyboard after adding task
+    Keyboard.dismiss();
   }
   //Removes a task by its index
   function deleteTask(index: number) {
@@ -325,6 +624,11 @@ export default function Index() {
     setEditInput(tasks[index].title);
     // Load current category so it can be edited
     setSelectedCategory(tasks[index].category);
+    // Scroll to bottom so edit form is visible above keyboard
+    setTimeout(
+      () => taskScrollRef.current?.scrollToEnd({ animated: true }),
+      400,
+    );
   }
   //Saves the edited task
   function saveEdit() {
@@ -338,491 +642,2456 @@ export default function Index() {
     );
     setEditingIndex(null);
     setEditInput("");
-  }
-  function swimFish(
-    fishX: Animated.Value,
-    fishScale: Animated.Value,
-    startX: number,
-  ) {
-    // Face right and swim to the end
-    fishScale.setValue(-1); // turns the fish to the right
-    Animated.timing(fishX, {
-      // moves the fish to the position 320px
-      toValue: 320,
-      duration: 3000, // in 3 secs
-      useNativeDriver: true,
-    }).start(() => {
-      // when it ends...
-      // Face left and swim back
-      fishScale.setValue(1); // turns the fish to the right
-      Animated.timing(fishX, {
-        // goes back to the original position
-        toValue: startX,
-        duration: 3000,
-        useNativeDriver: true,
-      }).start(() => swimFish(fishX, fishScale, startX)); // when it ends, it calls to itself = infinite loop
-    });
+    // Reset swipeables so none stay open after edit
+    setSwipeResetKey((k) => k + 1);
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
-      <ScrollView
-        contentContainerStyle={{
-          alignItems: "center",
-          paddingVertical: 48,
-          paddingHorizontal: 24,
-        }}
-        showsVerticalScrollIndicator={false}
+    <View style={{ flex: 1 }}>
+      {/* ── AQUARIUM BACKGROUND ── */}
+      <View
+        style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0 }}
       >
-        {/* ── TIMER SECTION ── */}
-        <View style={{ alignItems: "center", width: "100%", maxWidth: 400 }}>
-          {/* Mode label + pomodoro count + settings button */}
+        {/* Water — crystal aqua blue */}
+        <View style={{ flex: 1, backgroundColor: "#0077b6" }} />
+        {/* Sand at the bottom — base layer, warm golden tone */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 60,
+            backgroundColor: "#e0b96a",
+            borderTopLeftRadius: 20,
+            borderTopRightRadius: 20,
+          }}
+        />
+        {/* Sand shadow — darker tone at the very bottom for depth */}
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            height: 28,
+            backgroundColor: "#b8904a",
+            borderTopLeftRadius: 12,
+            borderTopRightRadius: 12,
+          }}
+        />
+        {/* Sand texture — pixel-art style speckles simulating Minecraft
+  sand */}
+        {SAND_PIXELS.map((dot, i) => (
           <View
+            key={i}
             style={{
-              flexDirection: "row",
-              alignItems: "center",
-              justifyContent: "center",
-              width: "100%",
-              marginBottom: 8,
-              gap: 12,
+              position: "absolute",
+              bottom: dot.bottom,
+              left: dot.left,
+              width: dot.size,
+              height: dot.size,
+              backgroundColor: dot.color,
+              borderRadius: dot.size / 2,
+              opacity: 0.6,
+            }}
+          />
+        ))}
+      </View>
+      {/* Rock cluster - left side */}
+      <View style={{ position: "absolute", bottom: 53, left: 4 }}>
+        <Text style={{ fontSize: 44 }}>🪨</Text>
+      </View>
+      <View style={{ position: "absolute", bottom: 53, left: 40 }}>
+        <Text style={{ fontSize: 26 }}>🪨</Text>
+      </View>
+
+      {/* Rock cluster - right side */}
+      <View style={{ position: "absolute", bottom: 53, right: 4 }}>
+        <Text style={{ fontSize: 44 }}>🪨</Text>
+      </View>
+      <View style={{ position: "absolute", bottom: 53, right: 40 }}>
+        <Text style={{ fontSize: 26 }}>🪨</Text>
+      </View>
+
+      {/* Seaweed 1 - very tall, left side */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          left: 40,
+          width: 44,
+          height: 170,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed1Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 19,
+            width: 6,
+            height: 170,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 8,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 15,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 8,
+            width: 15,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 20,
+            width: 13,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 8,
+            width: 13,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 20,
+            width: 11,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 8,
+            width: 11,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 20,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 8,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 20,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 8,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 20,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 8,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 220,
+            left: 20,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 235,
+            left: 8,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 250,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 265,
+            left: 8,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 280,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 295,
+            left: 8,
+            width: 4,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 310,
+            left: 20,
+            width: 4,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 2 - medium-tall, left side */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          left: 88,
+          width: 40,
+          height: 130,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed2Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 17,
+            width: 6,
+            height: 130,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 3,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 4,
+            width: 12,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 20,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 5,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 20,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 5,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 20,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 5,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 20,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 6,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 20,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 6,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 220,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 235,
+            left: 6,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 3 - very tall, right side */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          right: 40,
+          width: 44,
+          height: 160,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed3Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 19,
+            width: 6,
+            height: 160,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 3,
+            width: 16,
+            height: 7,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 4,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 20,
+            width: 12,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 5,
+            width: 12,
+            height: 6,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 20,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 6,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 20,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 7,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 20,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 7,
+            width: 8,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 20,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 7,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 220,
+            left: 20,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 235,
+            left: 8,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 250,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 265,
+            left: 8,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 280,
+            left: 20,
+            width: 5,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 293,
+            left: 8,
+            width: 4,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 4 - medium-tall, right side */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          right: 88,
+          width: 40,
+          height: 120,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed4Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 17,
+            width: 6,
+            height: 120,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 20,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 3,
+            width: 14,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 20,
+            width: 12,
+            height: 5,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 4,
+            width: 12,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 22,
+            width: 10,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 5,
+            width: 10,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 22,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 5,
+            width: 9,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 130,
+            left: 22,
+            width: 8,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 145,
+            left: 5,
+            width: 8,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 160,
+            left: 22,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 175,
+            left: 6,
+            width: 7,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 190,
+            left: 22,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 205,
+            left: 6,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 5 - small, far left */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          left: 0,
+          width: 34,
+          height: 90,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed5Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 14,
+            width: 5,
+            height: 90,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 19,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 8,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 19,
+            width: 10,
+            height: 5,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 8,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 18,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 8,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 18,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 8,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 128,
+            left: 18,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Seaweed 6 - small, far right */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 58,
+          right: 0,
+          width: 34,
+          height: 90,
+          overflow: "hidden",
+          transform: [
+            {
+              rotate: seaweed6Sway.interpolate({
+                inputRange: [-1, 0, 1],
+                outputRange: ["-5deg", "0deg", "5deg"],
+              }),
+            },
+          ],
+        }}
+      >
+        <View
+          style={{
+            position: "absolute",
+            bottom: 0,
+            left: 14,
+            width: 5,
+            height: 90,
+            backgroundColor: "#7a8c2a",
+            borderRadius: 3,
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 10,
+            left: 19,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 25,
+            left: 8,
+            width: 12,
+            height: 6,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 40,
+            left: 19,
+            width: 10,
+            height: 5,
+            backgroundColor: "#3dcc15",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 55,
+            left: 8,
+            width: 10,
+            height: 5,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 70,
+            left: 18,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 85,
+            left: 8,
+            width: 9,
+            height: 4,
+            backgroundColor: "#2db510",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 100,
+            left: 18,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 115,
+            left: 8,
+            width: 7,
+            height: 4,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "-18deg",
+              },
+            ],
+          }}
+        />
+        <View
+          style={{
+            position: "absolute",
+            bottom: 128,
+            left: 18,
+            width: 6,
+            height: 3,
+            backgroundColor: "#259a0d",
+            borderRadius: 3,
+            transform: [
+              {
+                rotate: "18deg",
+              },
+            ],
+          }}
+        />
+      </Animated.View>
+
+      {/* Castle - center, bigger */}
+      <View style={{ position: "absolute", bottom: 53, left: "43%" }}>
+        <Text style={{ fontSize: 68 }}>🏰</Text>
+      </View>
+      {/* Shell - left of castle */}
+      <View style={{ position: "absolute", bottom: 53, left: 70 }}>
+        <Text style={{ fontSize: 20 }}>🐚</Text>
+      </View>
+      {/* Crab - walks from castle right side toward right seaweed */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 55,
+          left: "45%",
+          transform: [{ translateX: crabX }],
+        }}
+      >
+        <Animated.Text
+          style={{ fontSize: 28, transform: [{ scaleX: crabScale }] }}
+        >
+          🦀
+        </Animated.Text>
+      </Animated.View>
+
+      {/* Bubbles rising from the bottom */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          left: "20%",
+          opacity: bubble1Opacity,
+          transform: [{ translateY: bubble1Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 14,
+            height: 14,
+            borderRadius: 7,
+            backgroundColor: "#70C3B1",
+            borderWidth: 1,
+            borderColor: "#70C3B1",
+          }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          left: "45%",
+          opacity: bubble2Opacity,
+          transform: [{ translateY: bubble2Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 20,
+            height: 20,
+            borderRadius: 10,
+            backgroundColor: "#70C3B1",
+            borderWidth: 1,
+            borderColor: "#70C3B1",
+          }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          right: "25%",
+          opacity: bubble3Opacity,
+          transform: [{ translateY: bubble3Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            backgroundColor: "#70C3B1",
+            borderWidth: 1,
+            borderColor: "#70C3B1",
+          }}
+        />
+      </Animated.View>
+
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 60,
+          left: "65%",
+          opacity: bubble4Opacity,
+          transform: [{ translateY: bubble4Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 16,
+            height: 16,
+            borderRadius: 8,
+            backgroundColor: "#70C3B1",
+            borderWidth: 1,
+            borderColor: "#70C3B1",
+          }}
+        />
+      </Animated.View>
+
+      {/* Dynamic fish — appear as timer progresses */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          opacity: fishContainerOpacity,
+        }}
+      >
+        {activeFish.map((fish) => (
+          <Animated.Text
+            key={fish.id}
+            style={{
+              position: "absolute",
+              top: fish.y,
+              fontSize: fish.size,
+              transform: [
+                { translateX: fish.x },
+                { scaleX: fish.scaleX },
+                { translateY: fish.yDrift },
+              ],
             }}
           >
-            {/* Center group: FOCUS/BREAK badge and pomodoro count */}
+            {fish.emoji}
+          </Animated.Text>
+        ))}
+      </Animated.View>
+
+      {/* ── CONTENT ON TOP ── */}
+      <View
+        style={{
+          position: "absolute",
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          zIndex: 10,
+        }}
+      >
+        <SafeAreaView style={{ flex: 1 }}>
+          {/* ── TIMER SECTION ── */}
+          <View
+            style={{
+              alignItems: "center",
+              width: "100%",
+              maxWidth: 400,
+              alignSelf: "center",
+              padding: 24,
+              marginBottom: 16,
+              paddingTop: 48,
+              paddingHorizontal: 24,
+            }}
+          >
+            {/* Mode label + pomodoro count + settings button */}
             <View
-              style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                justifyContent: "center",
+                width: "100%",
+                marginBottom: 8,
+                gap: 12,
+              }}
             >
               <View
+                style={{ flexDirection: "row", alignItems: "center", gap: 12 }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "rgba(0,0,0,0.2)",
+                    borderWidth: 0,
+                    paddingHorizontal: 12,
+                    paddingVertical: 4,
+                    borderRadius: 6,
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "rgba(255,255,255,0.9)",
+                      fontSize: 14,
+                      fontWeight: "bold",
+                      letterSpacing: 2,
+                    }}
+                  >
+                    {isBreak ? "BREAK" : "FOCUS"}
+                  </Text>
+                </View>
+                {/* Pomodoro counter — styled as a pill badge matching the
+  FOCUS/BREAK badge */}
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    borderRadius: 20,
+                    paddingHorizontal: 10,
+                    paddingVertical: 5,
+                    gap: 4,
+                  }}
+                >
+                  <Text style={{ fontSize: 14 }}>🍅</Text>
+                  <Text
+                    style={{ color: "#fff", fontSize: 14, fontWeight: "bold" }}
+                  >
+                    {pomodoroCount}
+                  </Text>
+                </View>
+              </View>
+              <TouchableOpacity
+                onPress={() => router.push("/settings" as any)}
+                style={{ position: "absolute", right: 0 }}
+              >
+                <View
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.15)",
+                    borderRadius: 20,
+                    padding: 8,
+                  }}
+                >
+                  <Ionicons
+                    name="settings-outline"
+                    size={20}
+                    color="rgba(255,255,255,0.9)"
+                  />
+                </View>
+              </TouchableOpacity>
+            </View>
+
+            {/* Timer — transparent glass effect using stacked text */}
+            <View style={{ marginBottom: 4 }}>
+              {/* White outline layer */}
+              <Text
                 style={{
-                  backgroundColor: isBreak ? "#90e0ef22" : "#00b4d822",
-                  borderColor: isBreak ? "#90e0ef" : "#00b4d8",
-                  paddingHorizontal: 14,
-                  paddingVertical: 4,
-                  borderRadius: 20,
+                  fontSize: 135,
+                  color: "transparent",
+                  fontWeight: "bold",
+                  letterSpacing: -2,
+                  textShadowColor: "rgba(255,255,255,0.9)",
+                  textShadowOffset: { width: 0, height: 0 },
+                  textShadowRadius: 30,
+                }}
+              >
+                {formatTime(seconds)}
+              </Text>
+              {/* Transparent fill layer on top */}
+              <Text
+                style={{
+                  fontSize: 135,
+                  color: "rgba(255,255,255,0.6)",
+                  fontWeight: "bold",
+                  letterSpacing: -2,
+                  position: "absolute",
+                  top: 0,
+                  left: 0,
+                }}
+              >
+                {formatTime(seconds)}
+              </Text>
+            </View>
+
+            {/* Skip break */}
+            {isBreak && (
+              <TouchableOpacity
+                onPress={skipBreak}
+                style={{
+                  backgroundColor: "rgba(0,0,0,0.2)",
+                  borderColor: "rgba(255,255,255,0.6)",
+                  paddingHorizontal: 20,
+                  paddingVertical: 10,
+                  borderRadius: 50,
                   borderWidth: 1,
+                  marginBottom: 8,
+                }}
+              >
+                <Text
+                  style={{ color: "#ffffff", fontSize: 14, fontWeight: "bold" }}
+                >
+                  Skip break →
+                </Text>
+              </TouchableOpacity>
+            )}
+
+            {/* Buttons */}
+            <View
+              style={{
+                flexDirection: "row",
+                gap: 12,
+                marginTop: 16,
+                justifyContent: "center",
+              }}
+            >
+              <TouchableOpacity
+                onPress={() => setIsRunning(!isRunning)}
+                style={{
+                  backgroundColor: isRunning
+                    ? "rgba(255,255,255,0.15)"
+                    : "#ff6b35",
+                  paddingVertical: 14,
+                  paddingHorizontal: 40,
+                  borderRadius: 50,
+                  alignItems: "center",
+                }}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}
+                >
+                  {isRunning ? "Pause" : "Start"}
+                </Text>
+              </TouchableOpacity>
+              <TouchableOpacity
+                onPress={reset}
+                style={{
+                  backgroundColor: "rgba(255,255,255,0.1)",
+                  paddingVertical: 14,
+                  paddingHorizontal: 24,
+                  borderRadius: 50,
+                  alignItems: "center",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.4)",
+                }}
+              >
+                <Text style={{ color: "#fff", fontSize: 16 }}>Reset</Text>
+              </TouchableOpacity>
+            </View>
+          </View>
+          {/* ── TASKS SECTION ── */}
+          <BlurView
+            intensity={40}
+            tint="dark"
+            style={{
+              flex: 1,
+              alignItems: "center",
+              width: "100%",
+              maxWidth: 400,
+              borderRadius: 24,
+              overflow: "hidden",
+              padding: 24,
+              marginHorizontal: 24,
+              marginBottom: 48,
+              borderWidth: 1,
+              backgroundColor: "rgba(0, 119, 182, 0.35)",
+              borderColor: "rgba(255,255,255,0.2)",
+            }}
+          >
+            {/* Blue tint overlay on top of blur */}
+            <View
+              style={{
+                position: "absolute",
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                backgroundColor: "rgba(0, 119, 182, 0.3)",
+              }}
+            />
+            {/* Task input */}
+            <View style={{ flexDirection: "row", gap: 8, zIndex: 2 }}>
+              <TextInput
+                value={taskInput}
+                onChangeText={(text) => setTaskInput(text)}
+                placeholder="Add a task..."
+                placeholderTextColor="rgba(255,255,255,0.6)"
+                onSubmitEditing={addTask}
+                returnKeyType="done"
+                style={{
+                  flex: 1,
+                  backgroundColor: "rgba(255,255,255,0.15)",
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.3)",
+                  color: "#ffffff",
+                  padding: 16,
+                  borderRadius: 12,
+                  fontSize: 18,
+                  height: 52,
+                }}
+              />
+              <TouchableOpacity
+                onPress={addTask}
+                style={{
+                  backgroundColor: "#ff6b35",
+                  paddingHorizontal: 20,
+                  borderRadius: 50,
+                  justifyContent: "center",
+                  height: 52,
+                  width: 100,
                 }}
               >
                 <Text
                   style={{
-                    color: isBreak ? "#90e0ef" : "#00b4d8",
-                    fontSize: 14,
+                    color: "#fff",
                     fontWeight: "bold",
-                    letterSpacing: 2,
+                    fontSize: 16,
+                    textAlign: "center",
                   }}
                 >
-                  {isBreak ? "BREAK" : "FOCUS"}
+                  Add
                 </Text>
-              </View>
-              <Text style={{ color: "#555", fontSize: 16 }}>
-                🍅 {pomodoroCount}
-              </Text>
+              </TouchableOpacity>
             </View>
-            {/* Settings button on the right */}
-            <TouchableOpacity
-              onPress={() => router.push("/settings" as any)}
-              style={{ position: "absolute", right: 0 }}
-            >
-              <Text style={{ color: "#555", fontSize: 20 }}>⚙️ </Text>
-            </TouchableOpacity>
-          </View>
 
-          {/* Timer */}
-          <Text
-            style={{
-              fontSize: 88,
-              color: "#ffffff",
-              fontWeight: "bold",
-              letterSpacing: -2,
-              marginBottom: 4,
-            }}
-          >
-            {formatTime(seconds)}
-          </Text>
-
-          {/* Skip break */}
-          {isBreak && (
-            <TouchableOpacity
-              onPress={skipBreak}
+            {/* Category filter buttons */}
+            <Text
               style={{
-                backgroundColor: "#1e1e30",
-                paddingHorizontal: 20,
-                paddingVertical: 10,
-                borderRadius: 50,
-                borderWidth: 1,
-                borderColor: "#00b4d8",
-                marginBottom: 8,
+                color: "rgba(255,255,255,0.6)",
+                fontSize: 11,
+                marginTop: 16,
+                letterSpacing: 1,
+                zIndex: 2,
               }}
             >
-              <Text
-                style={{ color: "#00b4d8", fontSize: 14, fontWeight: "bold" }}
-              >
-                Skip break →
-              </Text>
-            </TouchableOpacity>
-          )}
-
-          {/* Buttons */}
-          <View style={{ flexDirection: "row", gap: 12, marginTop: 16 }}>
-            {/* Start/Pause button */}
-            <TouchableOpacity
-              onPress={() => setIsRunning(!isRunning)}
+              FILTER BY
+            </Text>
+            <View
               style={{
-                backgroundColor: isRunning ? "#333" : "#0077b6",
-                paddingVertical: 14,
-                paddingHorizontal: 40,
-                borderRadius: 50,
-                alignItems: "center",
-              }}
-            >
-              <Text style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}>
-                {isRunning ? "Pause" : "Start"}
-              </Text>
-            </TouchableOpacity>
-
-            {/* Reset button */}
-            <TouchableOpacity
-              onPress={reset}
-              style={{
-                backgroundColor: "#1e1e30",
-                paddingVertical: 14,
-                paddingHorizontal: 24,
-                borderRadius: 50,
-                alignItems: "center",
-                borderWidth: 1,
-                borderColor: "#333",
-              }}
-            >
-              <Text style={{ color: "#888", fontSize: 16 }}>Reset</Text>
-            </TouchableOpacity>
-          </View>
-        </View>
-
-        {/* ── FISH TANK ── */}
-        <View
-          style={{
-            width: "100%",
-            maxWidth: 400,
-            height: 80,
-            backgroundColor: "#0a1628",
-            borderRadius: 16,
-            marginVertical: 32,
-            overflow: "hidden",
-            borderWidth: 1,
-            borderColor: "#1a3a5c",
-          }}
-        >
-          <Animated.Text
-            style={{
-              fontSize: 24,
-              position: "absolute",
-              top: 24,
-              transform: [{ translateX: fish1X }, { scaleX: fish1Scale }],
-            }}
-          >
-            🐠
-          </Animated.Text>
-          <Animated.Text
-            style={{
-              fontSize: 20,
-              position: "absolute",
-              top: 10,
-              transform: [{ translateX: fish2X }, { scaleX: fish2Scale }],
-            }}
-          >
-            🐟
-          </Animated.Text>
-          <Animated.Text
-            style={{
-              fontSize: 18,
-              position: "absolute",
-              top: 38,
-              transform: [{ translateX: fish3X }, { scaleX: fish3Scale }],
-            }}
-          >
-            🐡
-          </Animated.Text>
-        </View>
-
-        {/* ── TASKS SECTION ── */}
-        <View style={{ width: "100%", maxWidth: 400 }}>
-          {/* Task input */}
-          <View style={{ flexDirection: "row", gap: 8 }}>
-            <TextInput
-              value={taskInput}
-              onChangeText={(text) => setTaskInput(text)}
-              placeholder="Add a task..."
-              placeholderTextColor="#aaa"
-              style={{
-                flex: 1,
-                backgroundColor: "#2a2a4e",
-                color: "#ffffff",
-                padding: 16,
-                borderRadius: 12,
-                fontSize: 18,
-                height: 52,
-              }}
-            />
-            <TouchableOpacity
-              onPress={addTask}
-              style={{
-                backgroundColor: "#0077b6",
-                paddingHorizontal: 20,
-                borderRadius: 50,
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 6,
+                marginTop: 8,
                 justifyContent: "center",
-                height: 52,
-                width: 100,
+                zIndex: 2,
               }}
             >
-              <Text
-                style={{
-                  color: "#fff",
-                  fontWeight: "bold",
-                  fontSize: 16,
-                  textAlign: "center",
-                }}
-              >
-                Add
-              </Text>
-            </TouchableOpacity>
-          </View>
-
-          {/* Category filter buttons */}
-          <Text
-            style={{
-              color: "#888",
-              fontSize: 11,
-              marginTop: 16,
-              letterSpacing: 1,
-            }}
-          >
-            FILTER BY
-          </Text>
-          <View
-            style={{
-              flexDirection: "row",
-              flexWrap: "wrap",
-              gap: 6,
-              marginTop: 8,
-              justifyContent: "center",
-            }}
-          >
-            <TouchableOpacity
-              onPress={() => setFilterCategory(null)}
-              style={{
-                backgroundColor:
-                  filterCategory === null ? "#0077b6" : "#1e1e30",
-                paddingHorizontal: 18,
-                paddingVertical: 12,
-                borderRadius: 22,
-                borderWidth: 1,
-                borderColor: filterCategory === null ? "#0077b6" : "#333",
-              }}
-            >
-              <Text style={{ color: "#fff", fontSize: 15 }}>All</Text>
-            </TouchableOpacity>
-            {CATEGORIES.map((cat) => (
               <TouchableOpacity
-                key={cat.label}
-                onPress={() => setFilterCategory(cat.label)}
+                onPress={() => setFilterCategory(null)}
                 style={{
                   backgroundColor:
-                    filterCategory === cat.label ? "#0077b6" : "#1e1e30",
+                    filterCategory === null
+                      ? "#ff6b35"
+                      : "rgba(255,255,255,0.15)",
                   paddingHorizontal: 18,
                   paddingVertical: 12,
                   borderRadius: 22,
                   borderWidth: 1,
                   borderColor:
-                    filterCategory === cat.label ? "#0077b6" : "#333",
+                    filterCategory === null
+                      ? "#ff6b35"
+                      : "rgba(255,255,255,0.15)",
                 }}
               >
-                <Text style={{ color: "#fff", fontSize: 15 }}>
-                  {cat.emoji} {cat.label}
-                </Text>
+                <Text style={{ color: "#fff", fontSize: 15 }}>All</Text>
               </TouchableOpacity>
-            ))}
-          </View>
-
-          {/* Task list */}
-          <View style={{ marginTop: 16 }}>
-            {tasks
-              .map((task, originalIndex) => ({ task, originalIndex }))
-              .filter(
-                ({ task }) =>
-                  filterCategory === null || task.category === filterCategory,
-              )
-              .map(({ task, originalIndex: index }) => (
-                <View
-                  key={index}
+              {CATEGORIES.map((cat) => (
+                <TouchableOpacity
+                  key={cat.label}
+                  onPress={() => setFilterCategory(cat.label)}
                   style={{
-                    flexDirection: "row",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    backgroundColor: "#1e1e30",
-                    padding: 18,
-                    borderRadius: 12,
-                    marginBottom: 10,
+                    backgroundColor:
+                      filterCategory === cat.label
+                        ? "#ff6b35"
+                        : "rgba(255,255,255,0.15)",
+                    paddingHorizontal: 18,
+                    paddingVertical: 12,
+                    borderRadius: 22,
                     borderWidth: 1,
-                    borderColor: "#2a2a4e",
+                    borderColor:
+                      filterCategory === cat.label
+                        ? "#ff6b35"
+                        : "rgba(255,255,255,0.15)",
                   }}
                 >
-                  {editingIndex === index ? (
-                    // Edit mode — show input and save button
-                    <>
-                      <View style={{ flex: 1 }}>
-                        <TextInput
-                          value={editInput}
-                          onChangeText={(text) => setEditInput(text)}
-                          placeholderTextColor="#666"
-                          style={{
-                            backgroundColor: "#2a2a4e",
-                            color: "#fff",
-                            padding: 12,
-                            borderRadius: 8,
-                            fontSize: 18,
-                            marginBottom: 10,
-                            height: 52,
-                          }}
-                        />
-                        {/* Category selector in edit mode */}
+                  <Text style={{ color: "#fff", fontSize: 15 }}>
+                    {cat.emoji} {cat.label}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
+
+            {/* Task list */}
+            <View
+              style={{
+                flex: 1,
+                width: "100%",
+                overflow: "hidden",
+                borderTopWidth: 1,
+                borderTopColor: "rgba(255,255,255,0.12)",
+                marginTop: 12,
+              }}
+            >
+              <ScrollView
+                showsVerticalScrollIndicator={false}
+                style={{ flex: 1, width: "100%" }}
+                keyboardShouldPersistTaps="handled"
+                ref={taskScrollRef}
+                contentContainerStyle={{ paddingBottom: 16 }}
+              >
+                <View style={{ marginTop: 12, width: "100%" }}>
+                  {tasks
+                    .map((task, originalIndex) => ({ task, originalIndex }))
+                    .filter(
+                      ({ task }) =>
+                        filterCategory === null ||
+                        task.category === filterCategory,
+                    )
+                    .map(({ task, originalIndex: index }) => (
+                      <Swipeable
+                        key={task.title + task.category + swipeResetKey}
+                        containerStyle={{ width: "100%" }}
+                        overshootRight={false}
+                        renderRightActions={() => (
+                          <View
+                            style={{
+                              flexDirection: "row",
+                              alignItems: "stretch",
+                              marginBottom: 10,
+                            }}
+                          >
+                            <TouchableOpacity
+                              onPress={() => startEdit(index)}
+                              style={{
+                                backgroundColor: "#FF9E00",
+                                justifyContent: "center",
+                                alignItems: "center",
+                                paddingHorizontal: 24,
+                              }}
+                            >
+                              <Ionicons name="pencil" size={22} color="#fff" />
+                              <Text
+                                style={{
+                                  color: "#fff",
+                                  fontSize: 12,
+                                  marginTop: 4,
+                                }}
+                              >
+                                Edit
+                              </Text>
+                            </TouchableOpacity>
+                            <TouchableOpacity
+                              onPress={() => deleteTask(index)}
+                              style={{
+                                backgroundColor: "#e63946",
+                                justifyContent: "center",
+                                alignItems: "center",
+                                paddingHorizontal: 24,
+                                borderTopRightRadius: 12,
+                                borderBottomRightRadius: 12,
+                              }}
+                            >
+                              <Ionicons name="trash" size={22} color="#fff" />
+                              <Text
+                                style={{
+                                  color: "#fff",
+                                  fontSize: 12,
+                                  marginTop: 4,
+                                }}
+                              >
+                                Delete
+                              </Text>
+                            </TouchableOpacity>
+                          </View>
+                        )}
+                      >
                         <View
                           style={{
                             flexDirection: "row",
-                            gap: 6,
-                            flexWrap: "wrap",
-                            justifyContent: "center",
+                            width: "100%",
+                            alignItems: "center",
+                            backgroundColor: "rgba(40,45,90,0.75)",
+                            padding: 18,
+                            borderRadius: 12,
                             marginBottom: 10,
+                            borderWidth: 1,
+                            borderColor: "rgba(255,255,255,0.2)",
                           }}
                         >
-                          {CATEGORIES.map((cat) => (
+                          <>
                             <TouchableOpacity
-                              key={cat.label}
-                              onPress={() => setSelectedCategory(cat.label)}
+                              onPress={() => toggleTask(index)}
                               style={{
-                                backgroundColor:
-                                  selectedCategory === cat.label
-                                    ? "#0077b6"
-                                    : "#2a2a4e",
-                                paddingHorizontal: 18,
-                                paddingVertical: 12,
-                                borderRadius: 20,
+                                flex: 1,
+                                flexDirection: "row",
+                                alignItems: "center",
+                                gap: 12,
                               }}
                             >
-                              <Text style={{ color: "#fff", fontSize: 15 }}>
-                                {cat.emoji} {cat.label}
+                              <View
+                                style={{
+                                  width: 24,
+                                  height: 24,
+                                  borderRadius: 6,
+                                  borderWidth: 2,
+                                  borderColor: task.done
+                                    ? "#0077b6"
+                                    : "rgba(255,255,255,0.5)",
+                                  backgroundColor: task.done
+                                    ? "#0077b6"
+                                    : "transparent",
+                                  alignItems: "center",
+                                  justifyContent: "center",
+                                }}
+                              >
+                                {task.done && (
+                                  <Text
+                                    style={{
+                                      color: "#fff",
+                                      fontSize: 14,
+                                      fontWeight: "bold",
+                                    }}
+                                  >
+                                    ✓
+                                  </Text>
+                                )}
+                              </View>
+                              <Text
+                                style={{
+                                  color: task.done
+                                    ? "rgba(255,255,255,0.4)"
+                                    : "#e0e0e0",
+                                  textDecorationLine: task.done
+                                    ? "line-through"
+                                    : "none",
+                                  fontSize: 18,
+                                  fontWeight: "bold",
+                                  flex: 1,
+                                }}
+                              >
+                                {
+                                  CATEGORIES.find(
+                                    (c) => c.label === task.category,
+                                  )?.emoji
+                                }{" "}
+                                {task.title}
                               </Text>
                             </TouchableOpacity>
-                          ))}
+                          </>
                         </View>
-                        {/* Save button below categories */}
-                        <TouchableOpacity
-                          onPress={saveEdit}
-                          style={{
-                            backgroundColor: "#00b4d8",
-                            paddingHorizontal: 20,
-                            paddingVertical: 12,
-                            borderRadius: 50,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 16 }}>
-                            Save
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  ) : (
-                    // Normal mode — show task and action buttons
-                    <>
-                      <TouchableOpacity
-                        onPress={() => toggleTask(index)}
-                        style={{
-                          flex: 1,
-                          flexDirection: "row",
-                          alignItems: "center",
-                          gap: 12,
-                        }}
-                      >
-                        {/* Checkbox */}
-                        <View
-                          style={{
-                            width: 24,
-                            height: 24,
-                            borderRadius: 6,
-                            borderWidth: 2,
-                            borderColor: task.done ? "#0077b6" : "#555",
-                            backgroundColor: task.done
-                              ? "#0077b6"
-                              : "transparent",
-                            alignItems: "center",
-                            justifyContent: "center",
-                          }}
-                        >
-                          {task.done && (
-                            <Text
-                              style={{
-                                color: "#fff",
-                                fontSize: 14,
-                                fontWeight: "bold",
-                              }}
-                            >
-                              ✓
-                            </Text>
-                          )}
-                        </View>
-                        <Text
-                          style={{
-                            color: task.done ? "#555" : "#e0e0e0",
-                            textDecorationLine: task.done
-                              ? "line-through"
-                              : "none",
-                            fontSize: 18,
-                            fontWeight: "bold",
-                            flex: 1,
-                          }}
-                        >
-                          {
-                            CATEGORIES.find((c) => c.label === task.category)
-                              ?.emoji
-                          }{" "}
-                          {task.title}
-                        </Text>
-                      </TouchableOpacity>
-                      <View style={{ flexDirection: "row", gap: 8 }}>
-                        <TouchableOpacity
-                          onPress={() => startEdit(index)}
-                          style={{
-                            backgroundColor: "#0096c7",
-                            paddingHorizontal: 20,
-                            paddingVertical: 12,
-                            borderRadius: 50,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 16 }}>
-                            Edit
-                          </Text>
-                        </TouchableOpacity>
-                        <TouchableOpacity
-                          onPress={() => deleteTask(index)}
-                          style={{
-                            backgroundColor: "#e63946",
-                            paddingHorizontal: 20,
-                            paddingVertical: 12,
-                            borderRadius: 50,
-                            alignItems: "center",
-                          }}
-                        >
-                          <Text style={{ color: "#fff", fontSize: 16 }}>
-                            Delete
-                          </Text>
-                        </TouchableOpacity>
-                      </View>
-                    </>
-                  )}
+                      </Swipeable>
+                    ))}
                 </View>
-              ))}
-          </View>
-        </View>
-      </ScrollView>
-    </SafeAreaView>
+              </ScrollView>
+            </View>
+          </BlurView>
+
+          {/* ── EDIT TASK MODAL ── */}
+          <Modal
+            visible={editingIndex !== null}
+            transparent
+            animationType="slide"
+            onRequestClose={() => setEditingIndex(null)}
+          >
+            <KeyboardAvoidingView
+              behavior={Platform.OS === "ios" ? "padding" : "height"}
+              style={{
+                flex: 1,
+                justifyContent: "flex-end",
+                backgroundColor: "rgba(0,0,0,0)",
+              }}
+            >
+              <View
+                style={{
+                  backgroundColor: "#6b7a8d",
+                  borderTopLeftRadius: 24,
+                  borderTopRightRadius: 24,
+                  padding: 24,
+                  borderWidth: 1,
+                  borderColor: "rgba(255,255,255,0.2)",
+                }}
+              >
+                <Text
+                  style={{
+                    color: "rgba(255,255,255,0.6)",
+                    fontSize: 11,
+                    letterSpacing: 1,
+                    marginBottom: 12,
+                  }}
+                >
+                  EDIT TASK
+                </Text>
+                <TextInput
+                  value={editInput}
+                  onChangeText={(text) => setEditInput(text)}
+                  placeholderTextColor="#666"
+                  autoFocus
+                  style={{
+                    backgroundColor: "rgba(255,255,255,0.1)",
+                    color: "#fff",
+                    padding: 14,
+                    borderRadius: 12,
+                    fontSize: 18,
+                    marginBottom: 16,
+                    borderWidth: 1,
+                    borderColor: "rgba(255,255,255,0.2)",
+                  }}
+                />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    gap: 8,
+                    flexWrap: "wrap",
+                    marginBottom: 16,
+                  }}
+                >
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.label}
+                      onPress={() => setSelectedCategory(cat.label)}
+                      style={{
+                        backgroundColor:
+                          selectedCategory === cat.label
+                            ? "#ff6b35"
+                            : "rgba(255,255,255,0.15)",
+                        paddingHorizontal: 16,
+                        paddingVertical: 10,
+                        borderRadius: 20,
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 14 }}>
+                        {cat.emoji} {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </View>
+                <View style={{ flexDirection: "row", gap: 12 }}>
+                  <TouchableOpacity
+                    onPress={() => setEditingIndex(null)}
+                    style={{
+                      flex: 1,
+                      paddingVertical: 14,
+                      borderRadius: 50,
+                      alignItems: "center",
+                      borderWidth: 1,
+                      borderColor: "rgba(255,255,255,0.3)",
+                    }}
+                  >
+                    <Text style={{ color: "#fff", fontSize: 16 }}>Cancel</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity
+                    onPress={saveEdit}
+                    style={{
+                      flex: 2,
+                      backgroundColor: "#00b4d8",
+                      paddingVertical: 14,
+                      borderRadius: 50,
+                      alignItems: "center",
+                    }}
+                  >
+                    <Text
+                      style={{
+                        color: "#fff",
+                        fontSize: 16,
+                        fontWeight: "bold",
+                      }}
+                    >
+                      Save
+                    </Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+            </KeyboardAvoidingView>
+          </Modal>
+        </SafeAreaView>
+      </View>
+    </View>
   );
 }
