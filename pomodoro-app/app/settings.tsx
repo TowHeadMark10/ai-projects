@@ -454,6 +454,7 @@ export default function Settings() {
             setWorkMinutes(DEFAULT_WORK);
             setBreakMinutes(DEFAULT_BREAK);
             setFocusMode(false);
+            setMuted(false);
           }}
           style={{
             width: "100%",
