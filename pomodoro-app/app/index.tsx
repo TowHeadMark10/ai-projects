@@ -7,6 +7,7 @@ import Swipeable, {
   SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Ionicons } from "@expo/vector-icons";
+import { useKeepAwake } from "expo-keep-awake";
 import {
   Text,
   View,
@@ -64,6 +65,8 @@ const MAX_FISH = 20;
 export default function Index() {
   // Hook to navigate between screens
   const router = useRouter();
+  // Keep the screen awake while the timer is running so the user can see the countdown
+  useKeepAwake();
   // Seconds remaining on the timer
   const [seconds, setSeconds] = useState(DEFAULT_WORK);
   // Work time in seconds (can be changed in settings)
