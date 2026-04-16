@@ -1,8 +1,19 @@
-import { useEffect, useState } from "react";
-import { Text, View, TouchableOpacity, ScrollView } from "react-native";
+import { useEffect, useState, useRef } from "react";
+import {
+  Text,
+  View,
+  TouchableOpacity,
+  ScrollView,
+  TextInput,
+  Animated,
+  Dimensions,
+} from "react-native";
+
+const SCREEN_HEIGHT = Dimensions.get("window").height;
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { Ionicons } from "@expo/vector-icons";
 
 // Default times in minutes
 const DEFAULT_WORK = 25;
@@ -18,6 +29,57 @@ export default function Settings() {
   const [focusMode, setFocusMode] = useState(false);
   // Whether sound is muted
   const [muted, setMuted] = useState(false);
+  // Holds the raw text while the user is manually typing (null = not editing)
+  const [editWorkText, setEditWorkText] = useState<string | null>(null);
+  const [editBreakText, setEditBreakText] = useState<string | null>(null);
+
+  // Bubble animations — each bubble rises independently with its own timing
+  const bubble1Y = useRef(new Animated.Value(0)).current;
+  const bubble1Opacity = useRef(new Animated.Value(0)).current;
+  const bubble2Y = useRef(new Animated.Value(0)).current;
+  const bubble2Opacity = useRef(new Animated.Value(0)).current;
+  const bubble3Y = useRef(new Animated.Value(0)).current;
+  const bubble3Opacity = useRef(new Animated.Value(0)).current;
+
+  useEffect(() => {
+    // Animates a single bubble: fade in, rise up, fade out, then loop
+    const animateBubble = (
+      translateY: Animated.Value,
+      opacity: Animated.Value,
+      delay: number,
+      duration: number,
+    ) => {
+      const loop = () => {
+        translateY.setValue(0);
+        opacity.setValue(0);
+        Animated.sequence([
+          Animated.delay(delay),
+          Animated.parallel([
+            Animated.timing(opacity, {
+              toValue: 0.6,
+              duration: 400,
+              useNativeDriver: true,
+            }),
+            Animated.timing(translateY, {
+              toValue: -SCREEN_HEIGHT,
+              duration,
+              useNativeDriver: true,
+            }),
+          ]),
+          Animated.timing(opacity, {
+            toValue: 0,
+            duration: 300,
+            useNativeDriver: true,
+          }),
+        ]).start(loop);
+      };
+      loop();
+    };
+
+    animateBubble(bubble1Y, bubble1Opacity, 0, 4000);
+    animateBubble(bubble2Y, bubble2Opacity, 1500, 5000);
+    animateBubble(bubble3Y, bubble3Opacity, 3000, 3500);
+  }, []);
 
   // Load saved values when the screen opens
   useEffect(() => {
@@ -48,7 +110,8 @@ export default function Settings() {
   }
 
   return (
-    <SafeAreaView style={{ flex: 1, backgroundColor: "#0f0f1a" }}>
+    // Aquarium blue background to match the main screen
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0077b6" }}>
       <ScrollView
         contentContainerStyle={{
           alignItems: "center",
@@ -57,22 +120,50 @@ export default function Settings() {
           paddingHorizontal: 24,
         }}
       >
-        <Text
+        {/* Header row with back button and title */}
+        <View
           style={{
-            color: "#ffffff",
-            fontSize: 24,
-            fontWeight: "bold",
+            width: "100%",
+            maxWidth: 400,
+            flexDirection: "row",
+            alignItems: "center",
             marginBottom: 32,
           }}
         >
-          Settings
-        </Text>
+          <TouchableOpacity onPress={() => router.back()}>
+            <View
+              style={{
+                backgroundColor: "rgba(255,255,255,0.15)",
+                borderRadius: 20,
+                padding: 8,
+              }}
+            >
+              <Ionicons
+                name="chevron-back"
+                size={20}
+                color="rgba(255,255,255,0.9)"
+              />
+            </View>
+          </TouchableOpacity>
+          <Text
+            style={{
+              color: "#ffffff",
+              fontSize: 24,
+              fontWeight: "bold",
+              flex: 1,
+              textAlign: "center",
+              marginRight: 36,
+            }}
+          >
+            Settings
+          </Text>
+        </View>
 
         {/* Work time control */}
         <View style={{ width: "100%", maxWidth: 400, marginBottom: 24 }}>
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -85,17 +176,17 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <TouchableOpacity
               onPress={() => setWorkMinutes((m) => Math.max(1, m - 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -105,13 +196,47 @@ export default function Settings() {
             >
               <Text style={{ color: "#fff", fontSize: 20 }}>−</Text>
             </TouchableOpacity>
-            <Text style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}>
-              {workMinutes} min
-            </Text>
+            {editWorkText !== null ? (
+              <TextInput
+                style={{
+                  color: "#fff",
+                  fontSize: 32,
+                  fontWeight: "bold",
+                  minWidth: 80,
+                  textAlign: "center",
+                }}
+                value={editWorkText}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                autoFocus
+                onChangeText={setEditWorkText}
+                onBlur={() => {
+                  const n = parseInt(editWorkText);
+                  if (!isNaN(n)) setWorkMinutes(Math.min(60, Math.max(1, n)));
+                  setEditWorkText(null);
+                }}
+                onSubmitEditing={() => {
+                  const n = parseInt(editWorkText);
+                  if (!isNaN(n)) setWorkMinutes(Math.min(60, Math.max(1, n)));
+                  setEditWorkText(null);
+                }}
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={() => setEditWorkText(String(workMinutes))}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}
+                >
+                  {workMinutes}
+                  min
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => setWorkMinutes((m) => Math.min(60, m + 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -128,7 +253,7 @@ export default function Settings() {
         <View style={{ width: "100%", maxWidth: 400, marginBottom: 32 }}>
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -141,17 +266,17 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <TouchableOpacity
               onPress={() => setBreakMinutes((m) => Math.max(1, m - 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -161,13 +286,46 @@ export default function Settings() {
             >
               <Text style={{ color: "#fff", fontSize: 20 }}>−</Text>
             </TouchableOpacity>
-            <Text style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}>
-              {breakMinutes} min
-            </Text>
+            {editBreakText !== null ? (
+              <TextInput
+                style={{
+                  color: "#fff",
+                  fontSize: 32,
+                  fontWeight: "bold",
+                  minWidth: 80,
+                  textAlign: "center",
+                }}
+                value={editBreakText}
+                keyboardType="number-pad"
+                returnKeyType="done"
+                autoFocus
+                onChangeText={setEditBreakText}
+                onBlur={() => {
+                  const n = parseInt(editBreakText);
+                  if (!isNaN(n)) setBreakMinutes(Math.min(30, Math.max(1, n)));
+                  setEditBreakText(null);
+                }}
+                onSubmitEditing={() => {
+                  const n = parseInt(editBreakText);
+                  if (!isNaN(n)) setBreakMinutes(Math.min(30, Math.max(1, n)));
+                  setEditBreakText(null);
+                }}
+              />
+            ) : (
+              <TouchableOpacity
+                onPress={() => setEditBreakText(String(breakMinutes))}
+              >
+                <Text
+                  style={{ color: "#fff", fontSize: 32, fontWeight: "bold" }}
+                >
+                  {breakMinutes} min
+                </Text>
+              </TouchableOpacity>
+            )}
             <TouchableOpacity
               onPress={() => setBreakMinutes((m) => Math.min(30, m + 1))}
               style={{
-                backgroundColor: "#0077b6",
+                backgroundColor: "#e8622a",
                 width: 36,
                 height: 36,
                 borderRadius: 18,
@@ -184,7 +342,7 @@ export default function Settings() {
         <View style={{ width: "100%", maxWidth: 400, marginBottom: 32 }}>
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -198,11 +356,11 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <Text style={{ color: "#e0e0e0", fontSize: 15 }}>
@@ -213,7 +371,9 @@ export default function Settings() {
                 width: 44,
                 height: 24,
                 borderRadius: 12,
-                backgroundColor: focusMode ? "#0077b6" : "#2a2a4e",
+                backgroundColor: focusMode
+                  ? "#e8622a"
+                  : "rgba(255,255,255,0.2)",
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -241,7 +401,7 @@ export default function Settings() {
         >
           <Text
             style={{
-              color: "#888",
+              color: "rgba(255,255,255,0.6)",
               fontSize: 11,
               letterSpacing: 1,
               marginBottom: 12,
@@ -255,11 +415,11 @@ export default function Settings() {
               flexDirection: "row",
               alignItems: "center",
               justifyContent: "space-between",
-              backgroundColor: "#1e1e30",
+              backgroundColor: "rgba(0,0,0,0.2)",
               padding: 16,
               borderRadius: 12,
               borderWidth: 1,
-              borderColor: "#2a2a4e",
+              borderColor: "rgba(255,255,255,0.15)",
             }}
           >
             <Text style={{ color: "#e0e0e0", fontSize: 15 }}>
@@ -270,7 +430,7 @@ export default function Settings() {
                 width: 44,
                 height: 24,
                 borderRadius: 12,
-                backgroundColor: muted ? "#0077b6" : "#2a2a4e",
+                backgroundColor: muted ? "#e8622a" : "rgba(255,255,255,0.2)",
                 justifyContent: "center",
                 paddingHorizontal: 2,
               }}
@@ -294,6 +454,7 @@ export default function Settings() {
             setWorkMinutes(DEFAULT_WORK);
             setBreakMinutes(DEFAULT_BREAK);
             setFocusMode(false);
+            setMuted(false);
           }}
           style={{
             width: "100%",
@@ -301,21 +462,19 @@ export default function Settings() {
             paddingVertical: 14,
             borderRadius: 50,
             borderWidth: 1,
-            borderColor: "#0077b6",
+            borderColor: "rgba(255,255,255,0.4)",
             alignItems: "center",
             marginBottom: 16,
           }}
         >
-          <Text style={{ color: "#00b4d8", fontSize: 16 }}>
-            Reset to defaults
-          </Text>
+          <Text style={{ color: "#fff", fontSize: 16 }}>Reset to defaults</Text>
         </TouchableOpacity>
 
         {/* Save button */}
         <TouchableOpacity
           onPress={saveAndGoBack}
           style={{
-            backgroundColor: "#0077b6",
+            backgroundColor: "#e8622a",
             paddingVertical: 14,
             paddingHorizontal: 48,
             borderRadius: 50,
@@ -329,6 +488,65 @@ export default function Settings() {
           </Text>
         </TouchableOpacity>
       </ScrollView>
+
+      {/* Decorative bubbles rising from the bottom — aquarium theme */}
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 20,
+          left: "20%",
+          opacity: bubble1Opacity,
+          transform: [{ translateY: bubble1Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 10,
+            height: 10,
+            borderRadius: 5,
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
+          }}
+        />
+      </Animated.View>
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 10,
+          left: "50%",
+          opacity: bubble2Opacity,
+          transform: [{ translateY: bubble2Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 7,
+            height: 7,
+            borderRadius: 4,
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
+          }}
+        />
+      </Animated.View>
+      <Animated.View
+        style={{
+          position: "absolute",
+          bottom: 15,
+          left: "75%",
+          opacity: bubble3Opacity,
+          transform: [{ translateY: bubble3Y }],
+        }}
+      >
+        <View
+          style={{
+            width: 12,
+            height: 12,
+            borderRadius: 6,
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
+          }}
+        />
+      </Animated.View>
     </SafeAreaView>
   );
 }

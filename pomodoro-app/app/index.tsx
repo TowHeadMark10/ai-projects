@@ -410,7 +410,7 @@ export default function Index() {
       Animated.delay(delay),
       Animated.parallel([
         Animated.timing(bubbleY, {
-          toValue: -600,
+          toValue: -SCREEN_HEIGHT,
           duration: 4000,
           useNativeDriver: true,
         }),
@@ -2369,9 +2369,8 @@ export default function Index() {
             width: 14,
             height: 14,
             borderRadius: 7,
-            backgroundColor: "#70C3B1",
-            borderWidth: 1,
-            borderColor: "#70C3B1",
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
           }}
         />
       </Animated.View>
@@ -2390,9 +2389,8 @@ export default function Index() {
             width: 20,
             height: 20,
             borderRadius: 10,
-            backgroundColor: "#70C3B1",
-            borderWidth: 1,
-            borderColor: "#70C3B1",
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
           }}
         />
       </Animated.View>
@@ -2411,9 +2409,8 @@ export default function Index() {
             width: 10,
             height: 10,
             borderRadius: 5,
-            backgroundColor: "#70C3B1",
-            borderWidth: 1,
-            borderColor: "#70C3B1",
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
           }}
         />
       </Animated.View>
@@ -2432,9 +2429,8 @@ export default function Index() {
             width: 16,
             height: 16,
             borderRadius: 8,
-            backgroundColor: "#70C3B1",
-            borderWidth: 1,
-            borderColor: "#70C3B1",
+            borderWidth: 1.5,
+            borderColor: "rgba(255,255,255,0.6)",
           }}
         />
       </Animated.View>
