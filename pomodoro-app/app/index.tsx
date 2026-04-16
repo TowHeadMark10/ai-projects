@@ -7,6 +7,7 @@ import Swipeable, {
   SwipeableMethods,
 } from "react-native-gesture-handler/ReanimatedSwipeable";
 import { Ionicons } from "@expo/vector-icons";
+import { useKeepAwake } from "expo-keep-awake";
 import {
   Text,
   View,
@@ -64,6 +65,8 @@ const MAX_FISH = 20;
 export default function Index() {
   // Hook to navigate between screens
   const router = useRouter();
+  // Keep the screen awake while the timer is running so the user can see the countdown
+  useKeepAwake();
   // Seconds remaining on the timer
   const [seconds, setSeconds] = useState(DEFAULT_WORK);
   // Work time in seconds (can be changed in settings)
@@ -115,6 +118,8 @@ export default function Index() {
   const notificationIdRef = useRef<string | null>(null);
   // Stores the timestamp (ms) when the timer is expected to end
   const timerEndTimeRef = useRef<number | null>(null);
+  // Stores the timestamp (ms) when the app went to background (for fish catch-up)
+  const backgroundStartTimeRef = useRef<number | null>(null);
   const breakTimeRef = useRef(breakTime);
   // Bubble animations — each bubble rises independently
   const bubble1Y = useRef(new Animated.Value(0)).current;
@@ -138,6 +143,18 @@ export default function Index() {
   const [focusMode, setFocusMode] = useState(false);
   // Whether timer sounds are muted
   const [muted, setMuted] = useState(false);
+  // Refs so interval callbacks can read the latest isBreak and muted without stale closures
+  const isBreakRef = useRef(false);
+  const mutedRef = useRef(false);
+
+  useEffect(() => {
+    isBreakRef.current = isBreak;
+  }, [isBreak]);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
+
   // List of active fish currently in the tank
   const [activeFish, setActiveFish] = useState<
     {
@@ -158,6 +175,10 @@ export default function Index() {
   const fishSpawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
+  // Ref to restart the fish spawn loop (used when returning from background)
+  const restartFishSpawnRef = useRef<(() => void) | null>(null);
+  // Ref to immediately spawn a single fish (used when returning from background)
+  const spawnFishNowRef = useRef<(() => void) | null>(null);
   const [swipeResetKey, setSwipeResetKey] = useState(0);
   // Opacity for fade-out on reset
   const fishContainerOpacity = useRef(new Animated.Value(1)).current;
@@ -167,69 +188,71 @@ export default function Index() {
     activeFishRef.current = activeFish;
   }, [activeFish]);
 
-  // Spawn and despawn fish based on timer state
+  // Spawns one fish. currentSeconds lets the caller pass the exact countdown
+  // value it has in scope — avoids stale-ref issues across multiple sessions.
+  // Clamps currentSeconds to [0, workTime] so a post-session breakTime value
+  // (which is > workTime) doesn't produce negative elapsed and wrong fish types.
+  function spawnOneFish(fromRight = false, currentSeconds = secondsRef.current) {
+    try {
+      // If currentSeconds > workTime the timer has already ended (seconds flipped
+      // to breakTime). Treat that as seconds=0 so progress stays valid [0,1].
+      const safeSecs = currentSeconds > workTimeRef.current ? 0 : Math.max(0, currentSeconds);
+      const elapsed = workTimeRef.current - safeSecs;
+      const progress = Math.min(1, Math.max(0, elapsed / workTimeRef.current));
+      const maxTypeIndex = Math.floor(progress * FISH_TYPES.length);
+      const availableTypes = FISH_TYPES.slice(0, Math.max(1, maxTypeIndex + 1));
+      const recentTypes = availableTypes.slice(-2);
+      const pool = Math.random() < 0.6 ? recentTypes : availableTypes;
+      const type = pool[Math.floor(Math.random() * pool.length)];
+      const newFish = {
+        id: fishIdRef.current++,
+        emoji: type.emoji,
+        size: type.size,
+        speed: type.speed * (0.7 + Math.random() * 0.6),
+        x: new Animated.Value(fromRight ? SCREEN_WIDTH + 50 : -50),
+        scaleX: new Animated.Value(fromRight ? 1 : -1),
+        y: Math.random() * (SCREEN_HEIGHT - 60) + 20,
+        yDrift: new Animated.Value(0),
+      };
+      if (fromRight) swimNewFishFromRight(newFish);
+      else swimNewFish(newFish);
+      setActiveFish((prev) =>
+        prev.length < MAX_FISH ? [...prev, newFish] : prev,
+      );
+    } catch (_) {}
+  }
+
+  // When timer starts: fade in tank and spawn the first fish
   useEffect(() => {
     if (isRunning) {
-      // Fade the fish container back in (in case it was faded out by reset)
       fishContainerOpacity.stopAnimation();
       Animated.timing(fishContainerOpacity, {
         toValue: 1,
         duration: 500,
         useNativeDriver: true,
       }).start();
-
-      // Spawn fish at a rate proportional to the total work time so they spread
-      // evenly across the whole session (e.g. 25min → ~1 fish every 75s)
-      const scheduleNextFish = () => {
-        // Base delay = total work time divided evenly among MAX_FISH slots
-        const baseDelay = (workTimeRef.current / MAX_FISH) * 1000;
-        // ±30% randomness so it feels natural, not mechanical
-        const delay = baseDelay * (0.7 + Math.random() * 0.6);
-        fishSpawnIntervalRef.current = setTimeout(() => {
-          if (activeFishRef.current.length < MAX_FISH) {
-            // Unlock more fish types as the timer progresses
-            // Early in session → only small fish; later → bigger/colorful ones
-            const progress = 1 - secondsRef.current / workTimeRef.current;
-            const maxTypeIndex = Math.floor(progress * FISH_TYPES.length);
-            const availableTypes = FISH_TYPES.slice(
-              0,
-              Math.max(1, maxTypeIndex + 1),
-            );
-            // 60% chance to pick from the 2 most recently unlocked types so
-            // bigger fish actually appear as they unlock, while still allowing
-            // smaller fish to show up occasionally for variety
-            const recentTypes = availableTypes.slice(-2);
-            const pool = Math.random() < 0.6 ? recentTypes : availableTypes;
-            const type = pool[Math.floor(Math.random() * pool.length)];
-
-            const newFish = {
-              id: fishIdRef.current++,
-              emoji: type.emoji,
-              size: type.size,
-              // ±30% speed variation so same-type fish don't move in lockstep
-              speed: type.speed * (0.7 + Math.random() * 0.6),
-              x: new Animated.Value(-50),
-              scaleX: new Animated.Value(-1),
-              // Spawn anywhere from near the top down to near the sand
-              y: Math.random() * (SCREEN_HEIGHT - 60) + 20,
-              // Starts at 0 — will oscillate up/down in swimNewFish
-              yDrift: new Animated.Value(0),
-            };
-
-            swimNewFish(newFish);
-            setActiveFish((prev) => [...prev, newFish]);
-          }
-          // Schedule the next fish regardless of whether one was spawned
-          scheduleNextFish();
-        }, delay) as unknown as ReturnType<typeof setInterval>;
-      };
-      scheduleNextFish();
+      spawnFishNowRef.current = () => spawnOneFish();
+      spawnOneFish(false, secondsRef.current); // initial fish from left
     } else {
-      clearTimeout(fishSpawnIntervalRef.current!);
+      spawnFishNowRef.current = null;
     }
-
-    return () => clearTimeout(fishSpawnIntervalRef.current!);
   }, [isRunning]);
+
+  // Every second, check if elapsed time warrants a new fish.
+  // Passes `seconds` directly so progress is always based on the current tick,
+  // never a stale ref — fixes wrong fish types on repeated sessions.
+  useEffect(() => {
+    if (!isRunning) return;
+    const elapsed = workTimeRef.current - seconds;
+    if (elapsed <= 0) return;
+    // Clamp to 3s minimum so short timers (< 2 min) still fill the tank
+    const fishInterval = Math.max(3, (workTimeRef.current - 120) / (MAX_FISH - 2));
+    const fishDue = Math.floor(elapsed / fishInterval);
+    const fishPresent = Math.max(0, activeFishRef.current.length - 2);
+    if (fishDue > fishPresent) {
+      spawnOneFish(false, seconds); // pass seconds directly — never stale
+    }
+  }, [seconds, isRunning]);
 
   // Start or stop the interval whenever isRunning changes
   useEffect(() => {
@@ -238,17 +261,14 @@ export default function Index() {
       timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
       // Schedule a notification for when the timer ends
       (async () => {
-        // Cancel any previously scheduled notification first
-        if (notificationIdRef.current) {
-          await Notifications.cancelScheduledNotificationAsync(
-            notificationIdRef.current,
-          );
-        }
+        // Cancel ALL pending notifications to avoid stale ones from previous sessions
+        await Notifications.cancelAllScheduledNotificationsAsync();
+        notificationIdRef.current = null;
         const id = await Notifications.scheduleNotificationAsync({
           content: {
-            title: isBreak ? "Break over! 💼" : "🍅 Pomodoro complete!",
+            title: isBreak ? "🍅 Break over!" : "🍅 Pomodoro complete!",
             body: isBreak ? "Time to focus." : "Time for a break.",
-            sound: "alarm.mp3",
+            sound: mutedRef.current ? false : "alarm.mp3",
             categoryIdentifier: "timer",
           },
           trigger: {
@@ -262,20 +282,16 @@ export default function Index() {
         setSeconds((s) => {
           if (s <= 1) {
             clearInterval(IntervalRef.current!);
-            // Cancel the notification — we handle the timer end in-app
-            if (notificationIdRef.current) {
-              Notifications.cancelScheduledNotificationAsync(
-                notificationIdRef.current,
-              );
-              notificationIdRef.current = null;
+            // Cancel ALL notifications — using cancelAll (not just by ID) eliminates
+            // the race condition where JS drift lets the notification fire before cancel
+            Notifications.cancelAllScheduledNotificationsAsync();
+            notificationIdRef.current = null;
+            // Play sound now using refs — outside state setter to avoid race with notification
+            if (!mutedRef.current) {
+              isBreakRef.current ? playAlarm() : playChime();
             }
             setIsRunning(false);
             setisBreak((prev) => {
-              if (prev) {
-                if (!muted) playAlarm();
-              } else {
-                if (!muted) playChime();
-              }
               const nextisBreak = !prev;
               if (nextisBreak) setPomodoroCount((c) => c + 1);
               setSeconds(nextisBreak ? breakTime : workTime);
@@ -357,13 +373,34 @@ export default function Index() {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "background" && isRunningRef.current) {
-        // Save when the timer should end
+        // Save when the timer should end and when we went to background
         timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
+        backgroundStartTimeRef.current = Date.now();
         if (focusMode) {
           wasRunningRef.current = true;
           setIsRunning(false);
         }
       } else if (nextState === "active") {
+        // Spawn catch-up fish proportional to time spent in background.
+        // Distribute them across the session so they get the right types
+        // (early fish = small, later fish = larger) rather than all using
+        // the current (possibly post-session) secondsRef value.
+        if (backgroundStartTimeRef.current) {
+          const bgElapsed = Date.now() - backgroundStartTimeRef.current;
+          const baseDelay = (workTimeRef.current * 0.7 / MAX_FISH) * 1000;
+          const fishToSpawn = Math.min(
+            Math.floor(bgElapsed / baseDelay),
+            MAX_FISH - activeFishRef.current.length,
+          );
+          for (let i = 0; i < fishToSpawn; i++) {
+            // Spread catch-up fish evenly across the work session
+            const catchUpProgress = (i + 1) / Math.max(fishToSpawn, 1);
+            const catchUpSecs = Math.round(workTimeRef.current * (1 - catchUpProgress));
+            spawnOneFish(false, catchUpSecs);
+          }
+        }
+        backgroundStartTimeRef.current = null;
+
         if (focusMode && wasRunningRef.current) {
           // Focus mode: resume timer
           setIsRunning(true);
@@ -379,9 +416,12 @@ export default function Index() {
           );
           timerEndTimeRef.current = null;
           if (remaining > 0) {
+            secondsRef.current = remaining;
             setSeconds(remaining);
+            // Restart the fish spawn loop (it may have drifted while in background)
+            clearInterval(fishSpawnIntervalRef.current!);
+            restartFishSpawnRef.current?.();
           } else {
-            // Timer already ended while in background — switch modes
             setIsRunning(false);
             setisBreak((prev) => {
               const nextIsBreak = !prev;
@@ -526,7 +566,19 @@ export default function Index() {
     setSeconds(workTime); // loads the 25 mins again
   }
 
-  // Animates a fish swimming across the screen and removes it when done
+  // Shared bob animation setup used by both swim functions
+  function startBob(fish: { yDrift: Animated.Value }) {
+    const bobDuration = 1200 + Math.random() * 1000;
+    Animated.loop(
+      Animated.sequence([
+        Animated.timing(fish.yDrift, { toValue: -8, duration: bobDuration, useNativeDriver: true }),
+        Animated.timing(fish.yDrift, { toValue: 8, duration: bobDuration, useNativeDriver: true }),
+      ]),
+      { resetBeforeIteration: false },
+    ).start();
+  }
+
+  // Starts a fish from the left side, swimming right then looping
   function swimNewFish(fish: {
     id: number;
     x: Animated.Value;
@@ -534,50 +586,46 @@ export default function Index() {
     speed: number;
     yDrift: Animated.Value;
   }) {
-    // Gentle vertical bob: each fish drifts ±8px with its own random timing
-    // so no two fish oscillate in sync
-    const bobDuration = 1200 + Math.random() * 1000;
-    Animated.loop(
-      Animated.sequence([
-        Animated.timing(fish.yDrift, {
-          toValue: -8,
-          duration: bobDuration,
-          useNativeDriver: true,
-        }),
-        Animated.timing(fish.yDrift, {
-          toValue: 8,
-          duration: bobDuration,
-          useNativeDriver: true,
-        }),
-      ]),
-      { resetBeforeIteration: false },
-    ).start();
-    // Face right and swim to the end
+    startBob(fish);
     fish.scaleX.setValue(-1);
-    Animated.timing(fish.x, {
-      toValue: 400,
-      duration: fish.speed,
-      useNativeDriver: true,
-    }).start(({ finished }) => {
-      if (!finished) return;
-      // Face left and swim back
-      fish.scaleX.setValue(1);
-      Animated.timing(fish.x, {
-        toValue: -50,
-        duration: fish.speed,
-        useNativeDriver: true,
-      }).start(({ finished }) => {
+    Animated.timing(fish.x, { toValue: 400, duration: fish.speed, useNativeDriver: true })
+      .start(({ finished }) => {
         if (!finished) return;
-        // Loop forever
-        swimNewFish(fish);
+        fish.scaleX.setValue(1);
+        Animated.timing(fish.x, { toValue: -50, duration: fish.speed, useNativeDriver: true })
+          .start(({ finished }) => {
+            if (!finished) return;
+            swimNewFish(fish);
+          });
       });
-    });
   }
 
-  // Plays a soft chime sound when work session ends
+  // Starts a fish from the right side, swimming left then looping
+  function swimNewFishFromRight(fish: {
+    id: number;
+    x: Animated.Value;
+    scaleX: Animated.Value;
+    speed: number;
+    yDrift: Animated.Value;
+  }) {
+    startBob(fish);
+    fish.scaleX.setValue(1);
+    Animated.timing(fish.x, { toValue: -50, duration: fish.speed, useNativeDriver: true })
+      .start(({ finished }) => {
+        if (!finished) return;
+        fish.scaleX.setValue(-1);
+        Animated.timing(fish.x, { toValue: 400, duration: fish.speed, useNativeDriver: true })
+          .start(({ finished }) => {
+            if (!finished) return;
+            swimNewFish(fish);
+          });
+      });
+  }
+
+  // Plays alarm sound when work session ends
   async function playChime() {
     const { sound } = await Audio.Sound.createAsync(
-      require("../assets/sounds/chime.mp3"),
+      require("../assets/sounds/alarm.mp3"),
       { shouldPlay: true },
     );
     sound.setOnPlaybackStatusUpdate((status) => {
@@ -2643,7 +2691,7 @@ export default function Index() {
                 <Text
                   style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}
                 >
-                  {isRunning ? "Pause" : "Start"}
+                  {isRunning ? "Pause" : isBreak ? "Start break" : "Start"}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
@@ -2667,7 +2715,7 @@ export default function Index() {
             intensity={40}
             tint="dark"
             style={{
-              flex: 1,
+              flexShrink: 1,
               alignItems: "center",
               width: "100%",
               maxWidth: 400,
@@ -2804,23 +2852,24 @@ export default function Index() {
               ))}
             </View>
 
-            {/* Task list */}
-            <View
-              style={{
-                flex: 1,
-                width: "100%",
-                overflow: "hidden",
-                borderTopWidth: 1,
-                borderTopColor: "rgba(255,255,255,0.12)",
-                marginTop: 12,
-              }}
-            >
+            {/* Task list — only rendered when there are tasks so the panel
+                shrinks to just input+filters when empty.
+                flexShrink+maxHeight on ScrollView makes it grow with content
+                but scroll when it exceeds the limit. */}
+            {tasks.length > 0 && (
               <ScrollView
                 showsVerticalScrollIndicator={false}
-                style={{ flex: 1, width: "100%" }}
                 keyboardShouldPersistTaps="handled"
                 ref={taskScrollRef}
-                contentContainerStyle={{ paddingBottom: 16 }}
+                style={{
+                  maxHeight: SCREEN_HEIGHT * 0.35,
+                  flexShrink: 1,
+                  width: "100%",
+                  borderTopWidth: 1,
+                  borderTopColor: "rgba(255,255,255,0.12)",
+                  marginTop: 12,
+                }}
+                contentContainerStyle={{ paddingBottom: 0 }}
               >
                 <View style={{ marginTop: 12, width: "100%" }}>
                   {tasks
@@ -2893,7 +2942,7 @@ export default function Index() {
                             flexDirection: "row",
                             width: "100%",
                             alignItems: "center",
-                            backgroundColor: "rgba(40,45,90,0.75)",
+                            backgroundColor: "rgba(255,255,255,0.12)",
                             padding: 18,
                             borderRadius: 12,
                             marginBottom: 10,
@@ -2966,7 +3015,7 @@ export default function Index() {
                     ))}
                 </View>
               </ScrollView>
-            </View>
+            )}
           </BlurView>
 
           {/* ── EDIT TASK MODAL ── */}
