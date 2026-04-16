@@ -2667,7 +2667,7 @@ export default function Index() {
             intensity={40}
             tint="dark"
             style={{
-              flex: 1,
+              flexShrink: 1,
               alignItems: "center",
               width: "100%",
               maxWidth: 400,
@@ -2804,23 +2804,24 @@ export default function Index() {
               ))}
             </View>
 
-            {/* Task list */}
-            <View
-              style={{
-                flex: 1,
-                width: "100%",
-                overflow: "hidden",
-                borderTopWidth: 1,
-                borderTopColor: "rgba(255,255,255,0.12)",
-                marginTop: 12,
-              }}
-            >
+            {/* Task list — only rendered when there are tasks so the panel
+                shrinks to just input+filters when empty.
+                flexShrink+maxHeight on ScrollView makes it grow with content
+                but scroll when it exceeds the limit. */}
+            {tasks.length > 0 && (
               <ScrollView
                 showsVerticalScrollIndicator={false}
-                style={{ flex: 1, width: "100%" }}
                 keyboardShouldPersistTaps="handled"
                 ref={taskScrollRef}
-                contentContainerStyle={{ paddingBottom: 16 }}
+                style={{
+                  maxHeight: SCREEN_HEIGHT * 0.35,
+                  flexShrink: 1,
+                  width: "100%",
+                  borderTopWidth: 1,
+                  borderTopColor: "rgba(255,255,255,0.12)",
+                  marginTop: 12,
+                }}
+                contentContainerStyle={{ paddingBottom: 0 }}
               >
                 <View style={{ marginTop: 12, width: "100%" }}>
                   {tasks
@@ -2893,7 +2894,7 @@ export default function Index() {
                             flexDirection: "row",
                             width: "100%",
                             alignItems: "center",
-                            backgroundColor: "rgba(40,45,90,0.75)",
+                            backgroundColor: "rgba(255,255,255,0.12)",
                             padding: 18,
                             borderRadius: 12,
                             marginBottom: 10,
@@ -2966,7 +2967,7 @@ export default function Index() {
                     ))}
                 </View>
               </ScrollView>
-            </View>
+            )}
           </BlurView>
 
           {/* ── EDIT TASK MODAL ── */}
