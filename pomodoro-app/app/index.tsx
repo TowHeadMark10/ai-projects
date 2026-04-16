@@ -115,6 +115,8 @@ export default function Index() {
   const notificationIdRef = useRef<string | null>(null);
   // Stores the timestamp (ms) when the timer is expected to end
   const timerEndTimeRef = useRef<number | null>(null);
+  // Stores the timestamp (ms) when the app went to background (for fish catch-up)
+  const backgroundStartTimeRef = useRef<number | null>(null);
   const breakTimeRef = useRef(breakTime);
   // Bubble animations — each bubble rises independently
   const bubble1Y = useRef(new Animated.Value(0)).current;
@@ -170,6 +172,10 @@ export default function Index() {
   const fishSpawnIntervalRef = useRef<ReturnType<typeof setInterval> | null>(
     null,
   );
+  // Ref to restart the fish spawn loop (used when returning from background)
+  const restartFishSpawnRef = useRef<(() => void) | null>(null);
+  // Ref to immediately spawn a single fish (used when returning from background)
+  const spawnFishNowRef = useRef<(() => void) | null>(null);
   const [swipeResetKey, setSwipeResetKey] = useState(0);
   // Opacity for fade-out on reset
   const fishContainerOpacity = useRef(new Animated.Value(1)).current;
@@ -179,7 +185,7 @@ export default function Index() {
     activeFishRef.current = activeFish;
   }, [activeFish]);
 
-  // Spawn and despawn fish based on timer state
+  // Spawn fish only while the timer is running
   useEffect(() => {
     if (isRunning) {
       // Fade the fish container back in (in case it was faded out by reset)
@@ -235,8 +241,31 @@ export default function Index() {
           scheduleNextFish();
         }, delay) as unknown as ReturnType<typeof setInterval>;
       };
+
+      // Spawns one fish immediately (used to quickly repopulate tank on foreground return)
+      const spawnFishNow = () => {
+        if (activeFishRef.current.length >= MAX_FISH) return;
+        const type = FISH_TYPES[Math.floor(Math.random() * 3)];
+        const newFish = {
+          id: fishIdRef.current++,
+          emoji: type.emoji,
+          size: type.size,
+          speed: type.speed * (0.7 + Math.random() * 0.6),
+          x: new Animated.Value(-50),
+          scaleX: new Animated.Value(-1),
+          y: Math.random() * (SCREEN_HEIGHT - 60) + 20,
+          yDrift: new Animated.Value(0),
+        };
+        swimNewFish(newFish);
+        setActiveFish((prev) => [...prev, newFish]);
+      };
+
+      restartFishSpawnRef.current = scheduleNextFish;
+      spawnFishNowRef.current = spawnFishNow;
       scheduleNextFish();
     } else {
+      restartFishSpawnRef.current = null;
+      spawnFishNowRef.current = null;
       clearTimeout(fishSpawnIntervalRef.current!);
     }
 
@@ -368,13 +397,30 @@ export default function Index() {
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
       if (nextState === "background" && isRunningRef.current) {
-        // Save when the timer should end
+        // Save when the timer should end and when we went to background
         timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
+        backgroundStartTimeRef.current = Date.now();
         if (focusMode) {
           wasRunningRef.current = true;
           setIsRunning(false);
         }
       } else if (nextState === "active") {
+        // Clear existing fish (may be stuck off-screen after background animations ran)
+        // and spawn fresh ones proportional to how long we were away
+        if (backgroundStartTimeRef.current && spawnFishNowRef.current) {
+          setActiveFish([]);
+          const elapsed = Date.now() - backgroundStartTimeRef.current;
+          const baseDelay = (workTimeRef.current / MAX_FISH) * 1000;
+          const fishToSpawn = Math.min(
+            Math.max(3, Math.floor(elapsed / baseDelay)),
+            MAX_FISH,
+          );
+          for (let i = 0; i < fishToSpawn; i++) {
+            spawnFishNowRef.current();
+          }
+        }
+        backgroundStartTimeRef.current = null;
+
         if (focusMode && wasRunningRef.current) {
           // Focus mode: resume timer
           setIsRunning(true);
@@ -392,8 +438,10 @@ export default function Index() {
           if (remaining > 0) {
             secondsRef.current = remaining;
             setSeconds(remaining);
+            // Restart the fish spawn loop (it died while in background)
+            clearTimeout(fishSpawnIntervalRef.current!);
+            restartFishSpawnRef.current?.();
           } else {
-            // Timer already ended while in background — switch modes
             setIsRunning(false);
             setisBreak((prev) => {
               const nextIsBreak = !prev;
@@ -2655,7 +2703,7 @@ export default function Index() {
                 <Text
                   style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}
                 >
-                  {isRunning ? "Pause" : "Start"}
+                  {isRunning ? "Pause" : isBreak ? "Start break" : "Start"}
                 </Text>
               </TouchableOpacity>
               <TouchableOpacity
