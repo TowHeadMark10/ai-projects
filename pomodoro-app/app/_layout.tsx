@@ -11,7 +11,9 @@ Notifications.setNotificationHandler({
   handleNotification: async () => ({
     shouldShowBanner: false,
     shouldShowList: true,
-    shouldPlaySound: true,
+    // Sound is handled directly by playAlarm/playChime when app is open;
+    // iOS plays the notification sound natively when app is in background.
+    shouldPlaySound: false,
     shouldSetBadge: false,
   }),
 });

@@ -138,6 +138,18 @@ export default function Index() {
   const [focusMode, setFocusMode] = useState(false);
   // Whether timer sounds are muted
   const [muted, setMuted] = useState(false);
+  // Refs so interval callbacks can read the latest isBreak and muted without stale closures
+  const isBreakRef = useRef(false);
+  const mutedRef = useRef(false);
+
+  useEffect(() => {
+    isBreakRef.current = isBreak;
+  }, [isBreak]);
+
+  useEffect(() => {
+    mutedRef.current = muted;
+  }, [muted]);
+
   // List of active fish currently in the tank
   const [activeFish, setActiveFish] = useState<
     {
@@ -246,9 +258,9 @@ export default function Index() {
         }
         const id = await Notifications.scheduleNotificationAsync({
           content: {
-            title: isBreak ? "Break over! 💼" : "🍅 Pomodoro complete!",
+            title: isBreak ? "🍅 Break over!" : "🍅 Pomodoro complete!",
             body: isBreak ? "Time to focus." : "Time for a break.",
-            sound: "alarm.mp3",
+            sound: mutedRef.current ? false : "alarm.mp3",
             categoryIdentifier: "timer",
           },
           trigger: {
@@ -269,13 +281,12 @@ export default function Index() {
               );
               notificationIdRef.current = null;
             }
+            // Play sound now using refs — outside state setter to avoid race with notification
+            if (!mutedRef.current) {
+              isBreakRef.current ? playAlarm() : playChime();
+            }
             setIsRunning(false);
             setisBreak((prev) => {
-              if (prev) {
-                if (!muted) playAlarm();
-              } else {
-                if (!muted) playChime();
-              }
               const nextisBreak = !prev;
               if (nextisBreak) setPomodoroCount((c) => c + 1);
               setSeconds(nextisBreak ? breakTime : workTime);
@@ -379,6 +390,7 @@ export default function Index() {
           );
           timerEndTimeRef.current = null;
           if (remaining > 0) {
+            secondsRef.current = remaining;
             setSeconds(remaining);
           } else {
             // Timer already ended while in background — switch modes
@@ -574,10 +586,10 @@ export default function Index() {
     });
   }
 
-  // Plays a soft chime sound when work session ends
+  // Plays alarm sound when work session ends
   async function playChime() {
     const { sound } = await Audio.Sound.createAsync(
-      require("../assets/sounds/chime.mp3"),
+      require("../assets/sounds/alarm.mp3"),
       { shouldPlay: true },
     );
     sound.setOnPlaybackStatusUpdate((status) => {
