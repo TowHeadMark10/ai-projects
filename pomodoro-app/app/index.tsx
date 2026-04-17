@@ -478,7 +478,7 @@ export default function Index() {
         // Distribute them across the session so they get the right types
         // (early fish = small, later fish = larger) rather than all using
         // the current (possibly post-session) secondsRef value.
-        if (backgroundStartTimeRef.current) {
+        if (backgroundStartTimeRef.current && !wasRunningRef.current) {
           const bgElapsed = Date.now() - backgroundStartTimeRef.current;
           const baseDelay = ((workTimeRef.current * 0.7) / MAX_FISH) * 1000;
           const fishToSpawn = Math.min(
