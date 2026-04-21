@@ -1,10 +1,10 @@
-import WidgetKit                                                                                           
-mport SwiftUI                                                                                             
-                                                                                                             
-  // Entry point — only export the Live Activity widget
-  @main                                   
-  struct exportWidgets: WidgetBundle {
-      var body: some Widget {                                                                                
-          WidgetLiveActivity()            
-      }                                                                                                      
-  }     
+import WidgetKit
+import SwiftUI
+
+// Entry point — only export the Live Activity widget
+@main
+struct exportWidgets: WidgetBundle {
+    var body: some Widget {
+        WidgetLiveActivity()
+    }
+}
