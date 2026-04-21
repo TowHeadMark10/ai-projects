@@ -1,27 +1,26 @@
-import { requireOptionalNativeModule } from 'expo-modules-core';
+import { NativeModules } from 'react-native';
 
-// Load the native Swift module by its registered name (optional — returns null if not compiled in)
-const LiveActivityModule = requireOptionalNativeModule('LiveActivity');
+const { LiveActivityModule } = NativeModules;
 
-// Start a new Live Activity when the timer begins
 export async function startActivity(
-  sessionType: string,  // "Focus" or "Break"
-  totalSeconds: number, // total session duration in seconds
-  endTimestamp: number  // Unix seconds when the timer expires
+  sessionType: string,
+  totalSeconds: number,
+  endTimestamp: number
 ): Promise<void> {
-  return LiveActivityModule?.startActivity(sessionType, totalSeconds, endTimestamp);
+  if (!LiveActivityModule) return;
+  return LiveActivityModule.startActivity(sessionType, totalSeconds, endTimestamp);
 }
 
-// Update the Live Activity on pause or resume
 export async function updateActivity(
-  endTimestamp: number,  // updated expiry time in Unix seconds
+  endTimestamp: number,
   isPaused: boolean,
-  timeRemaining: number  // seconds remaining
+  timeRemaining: number
 ): Promise<void> {
-  return LiveActivityModule?.updateActivity(endTimestamp, isPaused, timeRemaining);
+  if (!LiveActivityModule) return;
+  return LiveActivityModule.updateActivity(endTimestamp, isPaused, timeRemaining);
 }
 
-// End the Live Activity when the timer completes or is reset
 export async function endActivity(timeRemaining: number): Promise<void> {
-  return LiveActivityModule?.endActivity(timeRemaining);
+  if (!LiveActivityModule) return;
+  return LiveActivityModule.endActivity(timeRemaining);
 }
