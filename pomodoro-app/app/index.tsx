@@ -112,6 +112,7 @@ export default function Index() {
   // Crab walking animation
   const crabX = useRef(new Animated.Value(0)).current;
   const crabScale = useRef(new Animated.Value(-1)).current;
+  const liveActivityTickRef = useRef(0);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -280,6 +281,7 @@ export default function Index() {
         if (liveActivityActiveRef.current) {
           // Already active — update endTimestamp and mark as running
           updateActivity(endTimestamp, false, secondsRef.current);
+          liveActivityTickRef.current = 0;
         } else {
           // First start — create a new Live Activity
           startActivity(
@@ -335,6 +337,16 @@ export default function Index() {
               return nextisBreak;
             });
             return 0;
+          }
+          if (Platform.OS === "ios" && liveActivityActiveRef.current) {
+            liveActivityTickRef.current += 1;
+            if (liveActivityTickRef.current % 5 === 0) {
+              updateActivity(
+                (timerEndTimeRef.current ?? 0) / 1000,
+                false,
+                s - 1,
+              );
+            }
           }
           return s - 1;
         });
