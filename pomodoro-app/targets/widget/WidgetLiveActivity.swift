@@ -121,22 +121,25 @@ struct WidgetLiveActivity: Widget {
                             .foregroundStyle(.green)
                     }
                 }
-            } compactLeading: {
-                // Compact Dynamic Island — left side
-                Text(context.attributes.sessionType == "Focus" ? "🍅" : "☕")
-            } compactTrailing: {
-                // Compact Dynamic Island — right side (timer countdown)
-                if context.state.isPaused {
-                    Text(formatSeconds(context.state.timeRemaining))
+            } compactLeading: {                                                                                            
+                // Small emoji to keep the island compact                                                                  
+                Text(context.attributes.sessionType == "Focus" ? "🍅" : "☕")                                              
+                    .font(.caption2)                                                                                       
+            } compactTrailing: {                                                                                           
+                if context.state.isPaused {                                                                                
+                    // Static text when paused
+                        Text(formatSeconds(context.state.timeRemaining))                                                       
                         .font(.system(.caption2, design: .monospaced).bold())
-                        .foregroundStyle(.green)
-                } else {
-                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)
-                        .monospacedDigit()
-                        .font(.caption2.bold())
-                        .foregroundStyle(.green)
-                }
-            } minimal: {
+                        .foregroundStyle(.green)                                                                           
+                } else {                                                                                                   
+                    // Fixed width matches paused state to keep island size consistent                                         
+                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)                                     
+                        .monospacedDigit()                                                                                     
+                        .font(.caption2.bold())                                                                                
+                        .foregroundStyle(.green)                                                                               
+                        .frame(width: 36)                                                                              
+                }                                       
+        }        minimal: {
                 // Shown when two Live Activities are active simultaneously
                 Text(context.attributes.sessionType == "Focus" ? "🍅" : "☕")
             }

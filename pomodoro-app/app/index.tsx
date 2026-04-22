@@ -112,6 +112,8 @@ export default function Index() {
   // Crab walking animation
   const crabX = useRef(new Animated.Value(0)).current;
   const crabScale = useRef(new Animated.Value(-1)).current;
+  // Tracks the session type of the currently active Live Activity
+  const liveActivitySessionRef = useRef<string | null>(null);
   const liveActivityTickRef = useRef(0);
 
   useEffect(() => {
@@ -278,18 +280,23 @@ export default function Index() {
       // Start or resume the Live Activity on iOS
       if (Platform.OS === "ios") {
         const endTimestamp = timerEndTimeRef.current / 1000; // convert ms to seconds
-        if (liveActivityActiveRef.current) {
-          // Already active — update endTimestamp and mark as running
+        const currentSessionType = isBreakRef.current ? "Break" : "Focus";
+        if (
+          liveActivityActiveRef.current &&
+          liveActivitySessionRef.current === currentSessionType
+        ) {
+          // Same session type — just update
           updateActivity(endTimestamp, false, secondsRef.current);
           liveActivityTickRef.current = 0;
         } else {
-          // First start — create a new Live Activity
+          // Start fresh activity for new session type
           startActivity(
-            isBreak ? "Break" : "Focus",
-            isBreak ? breakTime : workTime,
+            currentSessionType,
+            isBreakRef.current ? breakTime : workTime,
             endTimestamp,
           ).then(() => {
             liveActivityActiveRef.current = true;
+            liveActivitySessionRef.current = currentSessionType;
           });
         }
       }
