@@ -20,7 +20,7 @@ export async function updateActivity(
   return LiveActivityModule.updateActivity(endTimestamp, isPaused, timeRemaining);
 }
 
-export async function endActivity(timeRemaining: number): Promise<void> {
-  if (!LiveActivityModule) return;
-  return LiveActivityModule.endActivity(timeRemaining);
-}
+  export async function dismissActivity(): Promise<void> {
+    if (!LiveActivityModule) return;
+    return LiveActivityModule.dismissActivity();
+  } 

@@ -9,7 +9,6 @@ struct PomodoroActivityAttributes: ActivityAttributes {
     var sessionType: String
     var totalSeconds: Int
   }
-
 }
 
 @objc(LiveActivityModule)
@@ -39,14 +38,11 @@ class LiveActivityModule: NSObject {
         sessionType: sessionType,
         totalSeconds: Int(totalSeconds)
       )
-      // Only reuse our own activity reference — never grab activities.first
-      // (ended activities from the previous session can still be in that array)
       if let own = self.activity, own.activityState == .active {
         await own.update(ActivityContent(state: state, staleDate: nil))
         resolve(nil)
         return
       }
-      // Dismiss any lingering ended activities before requesting a new one
       for existing in Activity<PomodoroActivityAttributes>.activities {
         await existing.end(nil, dismissalPolicy: .immediate)
       }
@@ -78,9 +74,7 @@ class LiveActivityModule: NSObject {
         totalSeconds: self.currentTotalSeconds
       )
       let target = self.activity ?? Activity<PomodoroActivityAttributes>.activities.first
-
       if Int(timeRemaining) == 0 {
-        // Timer finished — expand Dynamic Island and lock screen with completion message
         let msg =
           self.currentSessionType == "Focus" ? "Time to take a break!" : "Time to get back to work!"
         let alert = AlertConfiguration(
@@ -93,6 +87,17 @@ class LiveActivityModule: NSObject {
       } else {
         await target?.update(ActivityContent(state: state, staleDate: nil))
       }
+      resolve(nil)
+    }
+  }
+
+  @objc func dismissActivity(
+    _ resolve: @escaping RCTPromiseResolveBlock,
+    reject: @escaping RCTPromiseRejectBlock
+  ) {
+    Task {
+      await self.activity?.end(nil, dismissalPolicy: .immediate)
+      self.activity = nil
       resolve(nil)
     }
   }

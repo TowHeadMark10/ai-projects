@@ -28,7 +28,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import {
   startActivity,
   updateActivity,
-  endActivity,
+  dismissActivity,
 } from "../modules/live-activity";
 
 // Get screen height once so fish can spawn across the full aquarium
@@ -114,6 +114,8 @@ export default function Index() {
   const crabScale = useRef(new Animated.Value(-1)).current;
   //Timer ends in live activity widget
   const timerJustEndedRef = useRef(false);
+  //Ends live activity
+  const activityIsDoneRef = useRef(false);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -311,9 +313,10 @@ export default function Index() {
         setSeconds((s) => {
           if (s <= 1) {
             clearInterval(IntervalRef.current!);
-            // Show "00:00 ⏸" without ending — lets the next session update in-place
+            // Flag for the pause effect below — it will send the "done" state (timeRemaining=0)
             if (Platform.OS === "ios" && liveActivityActiveRef.current) {
               timerJustEndedRef.current = true;
+              activityIsDoneRef.current = true;
             }
             // Cancel ALL notifications — using cancelAll (not just by ID) eliminates
             // the race condition where JS drift lets the notification fire before cancel
@@ -427,6 +430,12 @@ export default function Index() {
           setIsRunning(false);
         }
       } else if (nextState === "active") {
+        // Dismiss done Live Activity when user opens the app
+        if (Platform.OS === "ios" && activityIsDoneRef.current) {
+          dismissActivity();
+          activityIsDoneRef.current = false;
+          liveActivityActiveRef.current = false;
+        }
         // Spawn catch-up fish proportional to time spent in background.
         // Distribute them across the session so they get the right types
         // (early fish = small, later fish = larger) rather than all using
