@@ -140,12 +140,12 @@ struct WidgetLiveActivity: Widget {
                         if context.state.isPaused {
                             Text(formatSeconds(context.state.timeRemaining))
                                 .font(.system(.body, design: .monospaced).bold())
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
                         } else {
                             Text(timerInterval: Date()...endDate(context.state), countsDown: true)
                                 .monospacedDigit()
                                 .font(.body.bold())
-                                .foregroundStyle(.green)
+                                .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
                         }
                     }
                 }
@@ -159,7 +159,7 @@ struct WidgetLiveActivity: Widget {
                                     ? "Time to take a break!" : "Time to get back to work!"
                             )
                             .font(.subheadline.bold())
-                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .foregroundStyle(.white)
                             .multilineTextAlignment(.center)
                         }
                     }
@@ -171,15 +171,28 @@ struct WidgetLiveActivity: Widget {
                 if context.state.timeRemaining == 0 {
                     Text("✅").font(.caption2)
                 } else if context.state.isPaused {
-                    Text(formatSeconds(context.state.timeRemaining))
-                        .font(.system(.caption2, design: .monospaced).bold())
-                        .foregroundStyle(.green)
+                    Text(
+                        String(
+                            format: "%d:%02d", context.state.timeRemaining / 60,
+                            context.state.timeRemaining % 60)
+                    )
+                    .monospacedDigit()
+                    .font(.caption2.bold())
+                    .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                    .frame(width: 40)
                 } else {
-                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)
-                        .monospacedDigit()
-                        .font(.caption2.bold())
-                        .foregroundStyle(.green)
-                        .frame(width: 36)
+                    let mins = context.state.timeRemaining / 60
+                    if context.state.timeRemaining >= 600 {
+                        Text("\(mins)m")
+                            .font(.caption2.bold())
+                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                    } else {
+                        Text(timerInterval: Date()...endDate(context.state), countsDown: true)
+                            .monospacedDigit()
+                            .font(.caption2.bold())
+                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .frame(width: 36)
+                    }
                 }
             } minimal: {
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")

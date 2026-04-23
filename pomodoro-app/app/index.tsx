@@ -167,6 +167,18 @@ export default function Index() {
     mutedRef.current = muted;
   }, [muted]);
 
+  useEffect(() => {
+    if (
+      isRunning &&
+      ((seconds >= 600 && seconds % 60 === 0) || seconds === 599) &&
+      Platform.OS === "ios" &&
+      liveActivityActiveRef.current
+    ) {
+      const endTimestamp = (Date.now() + seconds * 1000) / 1000;
+      updateActivity(endTimestamp, false, seconds);
+    }
+  }, [seconds]);
+
   // List of active fish currently in the tank
   const [activeFish, setActiveFish] = useState<
     {
