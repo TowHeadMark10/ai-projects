@@ -112,6 +112,8 @@ export default function Index() {
   // Crab walking animation
   const crabX = useRef(new Animated.Value(0)).current;
   const crabScale = useRef(new Animated.Value(-1)).current;
+  //Timer ends in live activity widget
+  const timerJustEndedRef = useRef(false);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -311,7 +313,7 @@ export default function Index() {
             clearInterval(IntervalRef.current!);
             // Show "00:00 ⏸" without ending — lets the next session update in-place
             if (Platform.OS === "ios" && liveActivityActiveRef.current) {
-              updateActivity(Date.now() / 1000, true, 0);
+              timerJustEndedRef.current = true;
             }
             // Cancel ALL notifications — using cancelAll (not just by ID) eliminates
             // the race condition where JS drift lets the notification fire before cancel
@@ -344,11 +346,16 @@ export default function Index() {
       clearInterval(IntervalRef.current!);
       // Pause the Live Activity — show static time and "Paused" label
       if (Platform.OS === "ios" && liveActivityActiveRef.current) {
-        updateActivity(
-          Date.now() / 1000 + secondsRef.current, // updated endTimestamp
-          true, // isPaused
-          secondsRef.current, // timeRemaining
-        );
+        if (timerJustEndedRef.current) {
+          timerJustEndedRef.current = false;
+          updateActivity(Date.now() / 1000, true, 0); // send "done" state
+        } else {
+          updateActivity(
+            Date.now() / 1000 + secondsRef.current,
+            true,
+            secondsRef.current,
+          );
+        }
       }
     }
     return () => clearInterval(IntervalRef.current!);

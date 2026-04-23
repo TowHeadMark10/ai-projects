@@ -78,29 +78,21 @@ class LiveActivityModule: NSObject {
         totalSeconds: self.currentTotalSeconds
       )
       let target = self.activity ?? Activity<PomodoroActivityAttributes>.activities.first
-      await target?.update(ActivityContent(state: state, staleDate: nil))
-      resolve(nil)
-    }
-  }
 
-  @objc func endActivity(
-    _ timeRemaining: Double,
-    resolve: @escaping RCTPromiseResolveBlock,
-    reject: @escaping RCTPromiseRejectBlock
-  ) {
-    Task {
-      let state = PomodoroActivityAttributes.ContentState(
-        endTimestamp: Date().timeIntervalSince1970,
-        isPaused: true,
-        timeRemaining: Int(timeRemaining),
-        sessionType: self.currentSessionType,
-        totalSeconds: self.currentTotalSeconds
-      )
-      let target = self.activity ?? Activity<PomodoroActivityAttributes>.activities.first
-      // Keep the activity visible after timer ends (shows 0:00 and full bar)
-      await target?.end(
-        ActivityContent(state: state, staleDate: nil), dismissalPolicy: .default)
-      self.activity = nil
+      if Int(timeRemaining) == 0 {
+        // Timer finished — expand Dynamic Island and lock screen with completion message
+        let msg =
+          self.currentSessionType == "Focus" ? "Time to take a break!" : "Time to get back to work!"
+        let alert = AlertConfiguration(
+          title: "🍅 Pomodoro",
+          body: LocalizedStringResource(stringLiteral: msg),
+          sound: .default
+        )
+        await target?.update(
+          ActivityContent(state: state, staleDate: nil), alertConfiguration: alert)
+      } else {
+        await target?.update(ActivityContent(state: state, staleDate: nil))
+      }
       resolve(nil)
     }
   }
