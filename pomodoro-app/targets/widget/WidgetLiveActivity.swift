@@ -2,19 +2,15 @@ import ActivityKit
 import SwiftUI
 import WidgetKit
 
-// Data model
-// PomodoroActivityAttributes defines the data the widget receives from the app.
-// - ContentState: mutable properties that change during the session
-// - Fixed properties: sessionType and totalSeconds never change mid-session
-
 struct PomodoroActivityAttributes: ActivityAttributes {
     struct ContentState: Codable, Hashable {
-        var endTimestamp: Double  // Unix timestamp in seconds — SwiftUI uses this for auto-countdown
+        var endTimestamp: Double
         var isPaused: Bool
-        var timeRemaining: Int  // seconds remaining, displayed as static text when paused
+        var timeRemaining: Int
+        var sessionType: String
+        var totalSeconds: Int
     }
-    var sessionType: String  // "Focus" or "Break"
-    var totalSeconds: Int  // total session duration (used for progress ring calculation)
+
 }
 
 // Helpers
@@ -27,69 +23,72 @@ private func formatSeconds(_ s: Int) -> String {
     String(format: "%02d:%02d", s / 60, s % 60)
 }
 
-private func progress(
-    _ attrs: PomodoroActivityAttributes, _ state: PomodoroActivityAttributes.ContentState
-) -> Double {
-    let elapsed = Double(attrs.totalSeconds - state.timeRemaining)
-    return min(max(elapsed / Double(attrs.totalSeconds), 0), 1)
-}
-
 // Lock Screen UI
+
 struct LockScreenView: View {
     let context: ActivityViewContext<PomodoroActivityAttributes>
 
-    private var fishProgress: Double {
-        if context.state.isPaused {
-            return Double(context.state.timeRemaining) / Double(context.attributes.totalSeconds)
-        }
-        let timeLeft = context.state.endTimestamp - Date().timeIntervalSince1970
-        return min(max(timeLeft / Double(context.attributes.totalSeconds), 0), 1)
-    }
-
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text(context.attributes.sessionType == "Focus" ? "🍅 Focus" : "☕ Break")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-                Spacer()
-                if context.state.isPaused {
-                    Text("\(formatSeconds(context.state.timeRemaining)) ⏸")
-                        .font(.system(.body, design: .monospaced).bold())
-                        .foregroundStyle(.yellow)
-                } else {
-                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(spacing: 16) {
+                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                    .font(.system(size: 36))
+                    .padding(14)
+                    .background(Circle().fill(Color.white.opacity(0.12)))
+
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(context.state.sessionType == "Focus" ? "Focus" : "Break")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+
+                    if context.state.isPaused {
+                        Text("\(formatSeconds(context.state.timeRemaining)) ⏸")
+                            .font(.system(.title, design: .monospaced).bold())
+                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                    } else {
+                        Text(
+                            timerInterval:
+                                Date()...Date(timeIntervalSince1970: context.state.endTimestamp),
+                            countsDown: true
+                        )
                         .monospacedDigit()
-                        .font(.system(.body, design: .monospaced).bold())
-                }
-            }
-
-            GeometryReader { geo in
-                let totalWidth = geo.size.width
-                let fishSize: CGFloat = 22
-                let trackWidth = totalWidth - fishSize
-                let fishX = fishProgress * trackWidth
-
-                ZStack(alignment: .leading) {
-                    Capsule()
-                        .fill(Color.white.opacity(0.12))
-                        .frame(height: 16)
-                    if fishProgress > 0 {
-                        Rectangle()
-                            .fill(Color.cyan.opacity(0.35))
-                            .frame(width: fishX + fishSize, height: 16)
-                            .clipShape(Capsule())
+                        .font(.system(.title, design: .monospaced).bold())
+                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
                     }
-                    Text("🐟")
-                        .font(.system(size: 18))
-                        .frame(width: fishSize)
-                        .offset(x: fishX)
                 }
+                Spacer()
             }
-            .frame(height: 22)
+
+            if context.state.isPaused {
+                let fraction =
+                    1.0
+                    - (Double(context.state.timeRemaining) / Double(context.state.totalSeconds))
+                ZStack {
+                    Capsule().fill(Color.white.opacity(0.18)).frame(height: 4)
+                    ProgressView(value: fraction)
+                        .progressViewStyle(.linear)
+                        .tint(Color(red: 1.0, green: 0.6, blue: 0.0))
+                        .frame(maxWidth: .infinity)
+                }
+                .scaleEffect(y: 1.5, anchor: .center)
+            } else {
+                let start = Date(
+                    timeIntervalSince1970: context.state.endTimestamp
+                        - Double(context.state.totalSeconds))
+                let end = Date(timeIntervalSince1970: context.state.endTimestamp)
+                ZStack {
+                    Capsule().fill(Color.white.opacity(0.18)).frame(height: 4)
+                    ProgressView(timerInterval: start...end, countsDown: false)
+                        .progressViewStyle(.linear)
+                        .tint(Color(red: 1.0, green: 0.6, blue: 0.0))
+                        .labelsHidden()
+                        .frame(maxWidth: .infinity)
+                }
+                .scaleEffect(y: 1.5, anchor: .center)
+            }
         }
         .padding()
-        .activityBackgroundTint(Color(red: 0.1, green: 0.1, blue: 0.18))
+        .activityBackgroundTint(Color(red: 0.0, green: 0.6, blue: 0.9).opacity(0.7))
         .activitySystemActionForegroundColor(.white)
     }
 }
@@ -99,13 +98,11 @@ struct LockScreenView: View {
 struct WidgetLiveActivity: Widget {
     var body: some WidgetConfiguration {
         ActivityConfiguration(for: PomodoroActivityAttributes.self) { context in
-            // Lock screen view
             LockScreenView(context: context)
         } dynamicIsland: { context in
             DynamicIsland {
-                // Expanded Dynamic Island (shown when user long-presses)
                 DynamicIslandExpandedRegion(.leading) {
-                    Text(context.attributes.sessionType == "Focus" ? "🍅" : "☕")
+                    Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
                         .font(.title2)
                         .padding(.leading, 4)
                 }
@@ -121,27 +118,23 @@ struct WidgetLiveActivity: Widget {
                             .foregroundStyle(.green)
                     }
                 }
-            } compactLeading: {                                                                                            
-                // Small emoji to keep the island compact                                                                  
-                Text(context.attributes.sessionType == "Focus" ? "🍅" : "☕")                                              
-                    .font(.caption2)                                                                                       
-            } compactTrailing: {                                                                                           
-                if context.state.isPaused {                                                                                
-                    // Static text when paused
-                        Text(formatSeconds(context.state.timeRemaining))                                                       
+            } compactLeading: {
+                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                    .font(.caption2)
+            } compactTrailing: {
+                if context.state.isPaused {
+                    Text(formatSeconds(context.state.timeRemaining))
                         .font(.system(.caption2, design: .monospaced).bold())
-                        .foregroundStyle(.green)                                                                           
-                } else {                                                                                                   
-                    // Fixed width matches paused state to keep island size consistent                                         
-                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)                                     
-                        .monospacedDigit()                                                                                     
-                        .font(.caption2.bold())                                                                                
-                        .foregroundStyle(.green)                                                                               
-                        .frame(width: 36)                                                                              
-                }                                       
-        }        minimal: {
-                // Shown when two Live Activities are active simultaneously
-                Text(context.attributes.sessionType == "Focus" ? "🍅" : "☕")
+                        .foregroundStyle(.green)
+                } else {
+                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)
+                        .monospacedDigit()
+                        .font(.caption2.bold())
+                        .foregroundStyle(.green)
+                        .frame(width: 36)
+                }
+            } minimal: {
+                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
             }
             .widgetURL(URL(string: "pomodoroapp://"))
             .keylineTint(.green)

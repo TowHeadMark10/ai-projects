@@ -112,9 +112,6 @@ export default function Index() {
   // Crab walking animation
   const crabX = useRef(new Animated.Value(0)).current;
   const crabScale = useRef(new Animated.Value(-1)).current;
-  // Tracks the session type of the currently active Live Activity
-  const liveActivitySessionRef = useRef<string | null>(null);
-  const liveActivityTickRef = useRef(0);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -279,26 +276,15 @@ export default function Index() {
       timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
       // Start or resume the Live Activity on iOS
       if (Platform.OS === "ios") {
-        const endTimestamp = timerEndTimeRef.current / 1000; // convert ms to seconds
-        const currentSessionType = isBreakRef.current ? "Break" : "Focus";
-        if (
-          liveActivityActiveRef.current &&
-          liveActivitySessionRef.current === currentSessionType
-        ) {
-          // Same session type — just update
-          updateActivity(endTimestamp, false, secondsRef.current);
-          liveActivityTickRef.current = 0;
-        } else {
-          // Start fresh activity for new session type
-          startActivity(
-            currentSessionType,
-            isBreakRef.current ? breakTime : workTime,
-            endTimestamp,
-          ).then(() => {
-            liveActivityActiveRef.current = true;
-            liveActivitySessionRef.current = currentSessionType;
-          });
-        }
+        const endTimestamp = timerEndTimeRef.current / 1000;
+        // Always startActivity — updates in-place if active, creates new if not
+        startActivity(
+          isBreakRef.current ? "Break" : "Focus",
+          isBreakRef.current ? breakTime : workTime,
+          endTimestamp,
+        ).then(() => {
+          liveActivityActiveRef.current = true;
+        });
       }
       // Schedule a notification for when the timer ends
       (async () => {
@@ -323,10 +309,9 @@ export default function Index() {
         setSeconds((s) => {
           if (s <= 1) {
             clearInterval(IntervalRef.current!);
-            // End the Live Activity when the timer reaches zero
+            // Show "00:00 ⏸" without ending — lets the next session update in-place
             if (Platform.OS === "ios" && liveActivityActiveRef.current) {
-              endActivity(0);
-              liveActivityActiveRef.current = false;
+              updateActivity(Date.now() / 1000, true, 0);
             }
             // Cancel ALL notifications — using cancelAll (not just by ID) eliminates
             // the race condition where JS drift lets the notification fire before cancel
@@ -344,16 +329,6 @@ export default function Index() {
               return nextisBreak;
             });
             return 0;
-          }
-          if (Platform.OS === "ios" && liveActivityActiveRef.current) {
-            liveActivityTickRef.current += 1;
-            if (liveActivityTickRef.current % 5 === 0) {
-              updateActivity(
-                (timerEndTimeRef.current ?? 0) / 1000,
-                false,
-                s - 1,
-              );
-            }
           }
           return s - 1;
         });
