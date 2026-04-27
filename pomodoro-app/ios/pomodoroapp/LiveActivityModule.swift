@@ -31,13 +31,16 @@ class LiveActivityModule: NSObject {
     self.currentSessionType = sessionType
     self.currentTotalSeconds = Int(totalSeconds)
     Task {
-      let state = PomodoroActivityAttributes.ContentState(
-        endTimestamp: endTimestamp,
-        isPaused: false,
-        timeRemaining: Int(totalSeconds),
-        sessionType: sessionType,
-        totalSeconds: Int(totalSeconds)
-      )
+      // Subtract 1s from endTimestamp when session is exactly 60min so                       
+      // Text(timerInterval:) stays in M:SS format instead of switching to H:MM:SS            
+      let adjustedEnd = Int(totalSeconds) >= 3600 ? endTimestamp - 1.0 : endTimestamp         
+      let state = PomodoroActivityAttributes.ContentState(                                    
+      endTimestamp: adjustedEnd,                                                          
+      isPaused: false,                                                                    
+      timeRemaining: Int(adjustedEnd - Date().timeIntervalSince1970),
+      sessionType: sessionType,                                                           
+      totalSeconds: Int(totalSeconds)
+  )                  
       if let own = self.activity, own.activityState == .active {
         await own.update(ActivityContent(state: state, staleDate: nil))
         resolve(nil)
@@ -66,13 +69,16 @@ class LiveActivityModule: NSObject {
     reject: @escaping RCTPromiseRejectBlock
   ) {
     Task {
+      // Apply same -1s adjustment as startActivity for 60min sessions                        
+      // so JS updates don't undo the endTimestamp correction
+      let adjustedEnd = self.currentTotalSeconds >= 3600 ? endTimestamp - 1.0 : endTimestamp  
       let state = PomodoroActivityAttributes.ContentState(
-        endTimestamp: endTimestamp,
-        isPaused: isPaused,
-        timeRemaining: Int(timeRemaining),
-        sessionType: self.currentSessionType,
-        totalSeconds: self.currentTotalSeconds
-      )
+          endTimestamp: adjustedEnd,                                                          
+          isPaused: isPaused,                                                                 
+          timeRemaining: Int(timeRemaining),                                                  
+          sessionType: self.currentSessionType,                                               
+          totalSeconds: self.currentTotalSeconds                                              
+  )
       let target = self.activity ?? Activity<PomodoroActivityAttributes>.activities.first
       if Int(timeRemaining) == 0 {
         let msg =

@@ -165,34 +165,29 @@ struct WidgetLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                    .font(.caption2)
-            } compactTrailing: {
-                if context.state.timeRemaining == 0 {
-                    Text("✅").font(.caption2)
-                } else if context.state.isPaused {
-                    Text(
-                        String(
-                            format: "%d:%02d", context.state.timeRemaining / 60,
-                            context.state.timeRemaining % 60)
-                    )
-                    .monospacedDigit()
-                    .font(.caption2.bold())
-                    .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                    .frame(width: 40)
-                } else {
-                    let mins = context.state.timeRemaining / 60
-                    if context.state.timeRemaining >= 600 {
-                        Text("\(mins)m")
-                            .font(.caption2.bold())
-                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                    } else {
-                        Text(timerInterval: Date()...endDate(context.state), countsDown: true)
-                            .monospacedDigit()
-                            .font(.caption2.bold())
-                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                            .frame(width: 36)
-                    }
+                // Larger emoji to match bigger timer font                                          
+                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")                            
+                .font(.system(size: 16)) 
+                } compactTrailing: {                                                                    
+                    if context.state.timeRemaining == 0 {                                               
+                        Text("✅").font(.system(size: 16))                                              
+                } else if context.state.isPaused {                                                  
+                    let mins = context.state.timeRemaining / 60                                     
+                    let secs = context.state.timeRemaining % 60                                     
+                    // Larger font — DI expands horizontally to fit                                 
+                    Text(String(format: "%d:%02d", mins, secs))
+                        .monospacedDigit()                                                          
+                        .font(.system(size: 16, weight: .bold)) 
+                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))                    
+                        .multilineTextAlignment(.center)                                            
+                        .frame(width: 58)                                                           
+                } else {                                                                            
+                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)
+                        .monospacedDigit()                                                          
+                        .font(.system(size: 16, weight: .bold)) 
+                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))                    
+                        .multilineTextAlignment(.center)
+                        .frame(width: 58)
                 }
             } minimal: {
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")

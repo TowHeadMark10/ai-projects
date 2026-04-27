@@ -116,6 +116,9 @@ export default function Index() {
   const timerJustEndedRef = useRef(false);
   //Ends live activity
   const activityIsDoneRef = useRef(false);
+  // Tracks whether we've already sent the switch to live countdown (< 10 min) this session.
+  // Needed because the JS timer can skip seconds=599 exactly when the app is in the background.
+  const switchedToLiveCountdownRef = useRef(false);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -167,15 +170,19 @@ export default function Index() {
     mutedRef.current = muted;
   }, [muted]);
 
+  // Send Live Activity update every minute (>10 min left) and once at 9:59 to switch to live countdown
   useEffect(() => {
-    if (
-      isRunning &&
-      ((seconds >= 600 && seconds % 60 === 0) || seconds === 599) &&
-      Platform.OS === "ios" &&
-      liveActivityActiveRef.current
-    ) {
-      const endTimestamp = (Date.now() + seconds * 1000) / 1000;
-      updateActivity(endTimestamp, false, seconds);
+    if (isRunning && Platform.OS === "ios" && liveActivityActiveRef.current) {
+      const isMinuteTick = seconds > 599 && seconds % 60 === 59;
+      // Fire once the first time seconds drops below 600 — avoids missing exact value 599
+      // when JS skips seconds in the background
+      const isSwitchPoint =
+        seconds < 600 && seconds > 0 && !switchedToLiveCountdownRef.current;
+      if (isSwitchPoint) switchedToLiveCountdownRef.current = true;
+      if (isMinuteTick || isSwitchPoint) {
+        const endTimestamp = (Date.now() + seconds * 1000) / 1000;
+        updateActivity(endTimestamp, false, seconds);
+      }
     }
   }, [seconds]);
 
@@ -300,6 +307,7 @@ export default function Index() {
           endTimestamp,
         ).then(() => {
           liveActivityActiveRef.current = true;
+          switchedToLiveCountdownRef.current = false; // reset on each new session/resume
         });
       }
       // Schedule a notification for when the timer ends
@@ -614,6 +622,11 @@ export default function Index() {
 
   // Reset goes back to work mode
   function reset() {
+    if (Platform.OS === "ios" && liveActivityActiveRef.current) {
+      dismissActivity();
+      liveActivityActiveRef.current = false;
+      switchedToLiveCountdownRef.current = false;
+    }
     setIsRunning(false);
     setisBreak(false);
     setSeconds(workTime);
