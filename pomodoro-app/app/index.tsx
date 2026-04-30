@@ -627,6 +627,9 @@ export default function Index() {
       liveActivityActiveRef.current = false;
       switchedToLiveCountdownRef.current = false;
     }
+    // Clear done-state flags so a previous session doesn't pollute the next one
+    activityIsDoneRef.current = false;
+    timerJustEndedRef.current = false;
     setIsRunning(false);
     setisBreak(false);
     setSeconds(workTime);

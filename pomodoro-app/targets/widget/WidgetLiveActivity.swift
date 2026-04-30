@@ -10,7 +10,6 @@ struct PomodoroActivityAttributes: ActivityAttributes {
         var sessionType: String
         var totalSeconds: Int
     }
-
 }
 
 // Helpers
@@ -23,13 +22,20 @@ private func formatSeconds(_ s: Int) -> String {
     String(format: "%02d:%02d", s / 60, s % 60)
 }
 
+/// Returns true when session is done — either from JS state update (timeRemaining == 0)
+/// or when endTimestamp has elapsed but the JS update hasn't arrived yet
+private func isDone(_ state: PomodoroActivityAttributes.ContentState) -> Bool {
+    state.timeRemaining == 0 ||
+        (!state.isPaused && state.endTimestamp <= Date().timeIntervalSince1970)
+}
+
 // Lock Screen UI
 
 struct LockScreenView: View {
     let context: ActivityViewContext<PomodoroActivityAttributes>
 
     var body: some View {
-        if context.state.timeRemaining == 0 {
+        if isDone(context.state) {
             // Done — show completion message
             VStack(spacing: 6) {
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
@@ -74,7 +80,7 @@ struct LockScreenView: View {
                         } else {
                             Text(
                                 timerInterval:
-                                    Date()...Date(timeIntervalSince1970: context.state.endTimestamp),
+                                Date() ... Date(timeIntervalSince1970: context.state.endTimestamp),
                                 countsDown: true
                             )
                             .monospacedDigit()
@@ -88,7 +94,7 @@ struct LockScreenView: View {
                 if context.state.isPaused {
                     let fraction =
                         1.0
-                        - (Double(context.state.timeRemaining) / Double(context.state.totalSeconds))
+                            - (Double(context.state.timeRemaining) / Double(context.state.totalSeconds))
                     ZStack {
                         Capsule().fill(Color.white.opacity(0.3)).frame(height: 4)
                         ProgressView(value: fraction)
@@ -100,11 +106,12 @@ struct LockScreenView: View {
                 } else {
                     let start = Date(
                         timeIntervalSince1970: context.state.endTimestamp
-                            - Double(context.state.totalSeconds))
+                            - Double(context.state.totalSeconds)
+                    )
                     let end = Date(timeIntervalSince1970: context.state.endTimestamp)
                     ZStack {
                         Capsule().fill(Color.white.opacity(0.3)).frame(height: 4)
-                        ProgressView(timerInterval: start...end, countsDown: false)
+                        ProgressView(timerInterval: start ... end, countsDown: false)
                             .progressViewStyle(.linear)
                             .tint(Color(red: 1.0, green: 0.6, blue: 0.0))
                             .labelsHidden()
@@ -129,20 +136,20 @@ struct WidgetLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    if context.state.timeRemaining > 0 {
+                    if !isDone(context.state) {
                         Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
                             .font(.title2)
                             .padding(.leading, 4)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if context.state.timeRemaining > 0 {
+                    if !isDone(context.state) {
                         if context.state.isPaused {
                             Text(formatSeconds(context.state.timeRemaining))
                                 .font(.system(.body, design: .monospaced).bold())
                                 .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
                         } else {
-                            Text(timerInterval: Date()...endDate(context.state), countsDown: true)
+                            Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
                                 .monospacedDigit()
                                 .font(.body.bold())
                                 .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
@@ -150,7 +157,7 @@ struct WidgetLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.center) {
-                    if context.state.timeRemaining == 0 {
+                    if isDone(context.state) {
                         VStack(spacing: 2) {
                             Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
                                 .font(.system(size: 28))
@@ -165,27 +172,28 @@ struct WidgetLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                // Larger emoji to match bigger timer font                                          
-                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")                            
-                .font(.system(size: 16)) 
-                } compactTrailing: {                                                                    
-                    if context.state.timeRemaining == 0 {                                               
-                        Text("✅").font(.system(size: 16))                                              
-                } else if context.state.isPaused {                                                  
-                    let mins = context.state.timeRemaining / 60                                     
-                    let secs = context.state.timeRemaining % 60                                     
-                    // Larger font — DI expands horizontally to fit                                 
+                // Larger emoji to match bigger timer font
+                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                    .font(.system(size: 16))
+            } compactTrailing: {
+                if isDone(context.state) {
+                    Text("✅").font(.system(size: 16))
+                } else if context.state.isPaused {
+                    let mins = context.state.timeRemaining / 60
+                    let secs = context.state.timeRemaining % 60
+                    // Larger font — DI expands horizontally to fit
                     Text(String(format: "%d:%02d", mins, secs))
-                        .monospacedDigit()                                                          
-                        .font(.system(size: 16, weight: .bold)) 
-                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))                    
-                        .multilineTextAlignment(.center)                                            
-                        .frame(width: 58)                                                           
-                } else {                                                                            
-                    Text(timerInterval: Date()...endDate(context.state), countsDown: true)
-                        .monospacedDigit()                                                          
-                        .font(.system(size: 16, weight: .bold)) 
-                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))                    
+                        .monospacedDigit()
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                        .multilineTextAlignment(.center)
+                        .frame(width: 58)
+                } else {
+                    Text(timerInterval: Date() ... endDate(context.state), countsDown:
+                        true)
+                        .monospacedDigit()
+                        .font(.system(size: 16, weight: .bold))
+                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
                         .multilineTextAlignment(.center)
                         .frame(width: 58)
                 }
