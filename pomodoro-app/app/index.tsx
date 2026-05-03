@@ -175,7 +175,7 @@ export default function Index() {
   // Send Live Activity update every minute (>10 min left) and once at 9:59 to switch to live countdown
   useEffect(() => {
     if (isRunning && Platform.OS === "ios" && liveActivityActiveRef.current) {
-      const isMinuteTick = seconds > 599 && seconds % 60 === 59;
+      const isMinuteTick = seconds % 60 === 59;
       // Fire once the first time seconds drops below 600 — avoids missing exact value 599
       // when JS skips seconds in the background
       const isSwitchPoint =

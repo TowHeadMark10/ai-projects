@@ -140,25 +140,30 @@ struct WidgetLiveActivity: Widget {
                     if isDone(context.state) {
                         Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
                             .font(.system(size: 32))
-                            .padding(.leading, 4)
-                            .padding(.top, 8)
+                            .padding(.leading, 14)
+                            .frame(maxHeight: .infinity, alignment: .center)
                     } else {
-                        VStack(alignment: .leading, spacing: 0) {
+                        VStack(alignment: .leading, spacing: 2) {
                             Text(context.state.sessionType == "Focus" ? "Focus" : "Break")
-                                .font(.caption.bold())
-                                .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                                .font(.subheadline.bold())
+                                .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             if context.state.isPaused {
                                 Text(formatSeconds(context.state.timeRemaining))
-                                    .font(.system(size: 38, weight: .bold, design: .monospaced))
-                                    .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                                    .font(.system(size: 46, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                    .minimumScaleFactor(0.7)
+                                    .lineLimit(1)
                             } else {
                                 Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
                                     .monospacedDigit()
-                                    .font(.system(size: 38, weight: .bold))
-                                    .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                                    .font(.system(size: 46, weight: .bold))
+                                    .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                    .minimumScaleFactor(0.7)
+                                    .lineLimit(1)
                             }
                         }
-                        .padding(.leading, 4)
+                        .padding(.leading, 14)
+                        .padding(.top, 6)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
@@ -170,38 +175,46 @@ struct WidgetLiveActivity: Widget {
                             context.state.sessionType == "Focus"
                                 ? "Time to take a break!" : "Time to get back to work!"
                         )
-                        .font(.subheadline.bold())
-                        .foregroundStyle(.white)
+                        .font(.headline.bold())
+                        .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                        .padding(.top, 12)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
                     if !isDone(context.state) {
-                        let remaining = context.state.isPaused
-                            ? context.state.timeRemaining
-                            : max(0, Int(context.state.endTimestamp - Date().timeIntervalSince1970))
-                        let elapsedMinutes = max(0, context.state.totalSeconds - remaining) / 60
                         let completedBreaks = context.state.sessionType == "Focus"
                             ? context.state.pomodoroCount
                             : max(0, context.state.pomodoroCount - 1)
-                        HStack(spacing: 8) {
-                            HStack(spacing: 3) {
-                                Text("🍅")
-                                Text("\(context.state.pomodoroCount)").foregroundStyle(.white)
+                        let elapsedSecs = context.state.isPaused
+                            ? max(0, context.state.totalSeconds - context.state.timeRemaining)
+                            : max(0, Int(Date().timeIntervalSince1970 - (context.state.endTimestamp -
+                                    Double(context.state.totalSeconds))))
+                        let elapsedMinutes = elapsedSecs / 60
+                        HStack(spacing: 12) {
+                            HStack(spacing: 4) {
+                                Text("🍅").font(.callout)
+                                Text("\(context.state.pomodoroCount)")
+                                    .font(.callout.bold())
+                                    .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             }
-                            Text("|").foregroundStyle(.white.opacity(0.4))
-                            HStack(spacing: 3) {
-                                Text("☕")
-                                Text("\(completedBreaks)").foregroundStyle(.white)
+                            Text("·").foregroundStyle(.white.opacity(0.4))
+                            HStack(spacing: 4) {
+                                Text("☕").font(.callout)
+                                Text("\(completedBreaks)")
+                                    .font(.callout.bold())
+                                    .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             }
-                            Text("|").foregroundStyle(.white.opacity(0.4))
-                            Text("\(elapsedMinutes)m").foregroundStyle(.white)
+
+                            Text("·").foregroundStyle(.white.opacity(0.4))
+                            Text("\(elapsedMinutes)m")
+                                .font(.callout.bold())
+                                .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                         }
-                        .font(.caption)
                     }
                 }
             } compactLeading: {
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                    .font(.system(size: 16))
+                    .font(.system(size: 26))
             } compactTrailing: {
                 Group {
                     if isDone(context.state) {
@@ -213,14 +226,14 @@ struct WidgetLiveActivity: Widget {
                         Text(String(format: "%d:%02d", mins, secs))
                             .monospacedDigit()
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             .multilineTextAlignment(.center)
                             .frame(width: 58)
                     } else {
                         Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
                             .monospacedDigit()
                             .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             .multilineTextAlignment(.center)
                             .frame(width: 58)
                     }
@@ -228,6 +241,7 @@ struct WidgetLiveActivity: Widget {
                 .animation(.none, value: context.state.isPaused)
             } minimal: {
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                    .font(.system(size: 20))
             }
             .widgetURL(URL(string: "pomodoroapp://"))
             .keylineTint(Color(red: 0.0, green: 0.6, blue: 0.9))
