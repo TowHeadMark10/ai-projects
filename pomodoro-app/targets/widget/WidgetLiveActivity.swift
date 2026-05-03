@@ -37,92 +37,154 @@ struct LockScreenView: View {
 
     var body: some View {
         if isDone(context.state) {
-            // Done — show completion message
-            VStack(spacing: 6) {
-                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                    .font(.system(size: 40))
-                Text(context.state.sessionType == "Focus" ? "Pomodoro complete!" : "Break's over!")
-                    .font(.headline.bold())
-                    .foregroundStyle(.white)
-                Text(
-                    context.state.sessionType == "Focus"
-                        ? "Time to take a break." : "Time to get back to work."
-                )
-                .font(.caption)
-                .foregroundStyle(.white.opacity(0.8))
-                Text("Tap to open")
-                    .font(.caption2)
-                    .foregroundStyle(.white.opacity(0.5))
-                    .padding(.top, 2)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .activityBackgroundTint(Color(red: 0.0, green: 0.6, blue: 0.9).opacity(0.7))
-            .activitySystemActionForegroundColor(.white)
-        } else {
-            VStack(alignment: .leading, spacing: 8) {
-                HStack(spacing: 16) {
+            let completedBreaks = context.state.sessionType == "Focus"
+                ? context.state.pomodoroCount
+                : max(0, context.state.pomodoroCount - 1)
+            let totalMinutes = context.state.totalSeconds / 60
+
+            VStack(alignment: .leading, spacing: 4) {
+                // Emoji + completion message inline
+                HStack(spacing: 10) {
                     Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                        .font(.system(size: 36))
-                        .padding(14)
-                        .background(Circle().fill(Color.white.opacity(0.12)))
-
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text(context.state.sessionType == "Focus" ? "Focus" : "Break")
-                            .font(.caption)
-                            .foregroundStyle(.secondary)
-
-                        if context.state.isPaused {
-                            Text(
-                                "\(formatSeconds(context.state.timeRemaining)) \(context.state.timeRemaining == 0 ? "✅" : "⏸")"
-                            )
-                            .font(.system(.title, design: .monospaced).bold())
-                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                        } else {
-                            Text(
-                                timerInterval:
-                                Date() ... Date(timeIntervalSince1970: context.state.endTimestamp),
-                                countsDown: true
-                            )
-                            .monospacedDigit()
-                            .font(.system(.title, design: .monospaced).bold())
-                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                        }
-                    }
-                    Spacer()
+                        .font(.system(size: 40))
+                    Text(context.state.sessionType == "Focus" ? "Complete!" : "Break's over!")
+                        .font(.system(size: 36, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .minimumScaleFactor(0.7)
+                        .lineLimit(1)
                 }
 
+                // Tap hint
+                Text("Tap to open")
+                    .font(.caption2)
+                    .foregroundStyle(Color.white.opacity(0.35))
+
+                Spacer()
+
+                // Progress bar full
+                ZStack {
+                    Capsule().fill(Color.white.opacity(0.2)).frame(height: 4)
+                    ProgressView(value: 1.0)
+                        .progressViewStyle(.linear)
+                        .tint(Color.white.opacity(0.75))
+                        .frame(maxWidth: .infinity)
+                }
+                .scaleEffect(y: 2, anchor: .center)
+
+                Spacer()
+
+                // Final stats
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Text("🍅").font(.callout)
+                        Text("\(context.state.pomodoroCount)")
+                            .font(.callout.bold())
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                    Text("·").foregroundStyle(Color.white.opacity(0.35))
+                    HStack(spacing: 4) {
+                        Text("☕").font(.callout)
+                        Text("\(completedBreaks)")
+                            .font(.callout.bold())
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                    Text("·").foregroundStyle(Color.white.opacity(0.35))
+                    Text("\(totalMinutes)m")
+                        .font(.callout.bold())
+                        .foregroundStyle(Color.white.opacity(0.6))
+                }
+            }
+            .padding()
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .activityBackgroundTint(Color(red: 0.0, green: 0.467, blue: 0.714).opacity(0.9))
+            .activitySystemActionForegroundColor(.white)
+        } else {
+            let completedBreaks = context.state.sessionType == "Focus"
+                ? context.state.pomodoroCount
+                : max(0, context.state.pomodoroCount - 1)
+            let elapsedSecs = context.state.isPaused
+                ? max(0, context.state.totalSeconds - context.state.timeRemaining)
+                : max(0, Int(Date().timeIntervalSince1970 - (context.state.endTimestamp -
+                        Double(context.state.totalSeconds))))
+            let elapsedMinutes = elapsedSecs / 60
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(context.state.sessionType == "Focus" ? "Focus" : "Break")
+                    .font(.subheadline.bold())
+                    .foregroundStyle(Color.white.opacity(0.6))
+
                 if context.state.isPaused {
-                    let fraction =
-                        1.0
-                            - (Double(context.state.timeRemaining) / Double(context.state.totalSeconds))
+                    Text(formatSeconds(context.state.timeRemaining))
+                        .font(.system(size: 64, weight: .bold, design: .rounded))
+                        .foregroundStyle(Color.white.opacity(0.6))
+                        .minimumScaleFactor(0.6)
+                        .lineLimit(1)
+                } else {
+                    Text(
+                        timerInterval: Date() ... Date(timeIntervalSince1970: context.state.endTimestamp),
+                        countsDown: true
+                    )
+                    .monospacedDigit()
+                    .font(.system(size: 64, weight: .bold, design: .rounded))
+                    .foregroundStyle(Color.white.opacity(0.6))
+                    .minimumScaleFactor(0.6)
+                    .lineLimit(1)
+                }
+
+                Spacer()
+
+                // Progress bar
+                if context.state.isPaused {
+                    let fraction = 1.0 - (Double(context.state.timeRemaining) /
+                        Double(context.state.totalSeconds))
                     ZStack {
-                        Capsule().fill(Color.white.opacity(0.3)).frame(height: 4)
+                        Capsule().fill(Color.white.opacity(0.2)).frame(height: 4)
                         ProgressView(value: fraction)
                             .progressViewStyle(.linear)
-                            .tint(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .tint(Color.white.opacity(0.75))
                             .frame(maxWidth: .infinity)
                     }
                     .scaleEffect(y: 2, anchor: .center)
                 } else {
-                    let start = Date(
-                        timeIntervalSince1970: context.state.endTimestamp
-                            - Double(context.state.totalSeconds)
-                    )
+                    let start = Date(timeIntervalSince1970: context.state.endTimestamp -
+                        Double(context.state.totalSeconds))
                     let end = Date(timeIntervalSince1970: context.state.endTimestamp)
                     ZStack {
-                        Capsule().fill(Color.white.opacity(0.3)).frame(height: 4)
+                        Capsule().fill(Color.white.opacity(0.2)).frame(height: 4)
                         ProgressView(timerInterval: start ... end, countsDown: false)
                             .progressViewStyle(.linear)
-                            .tint(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .tint(Color.white.opacity(0.75))
                             .labelsHidden()
                             .frame(maxWidth: .infinity)
                     }
                     .scaleEffect(y: 2, anchor: .center)
                 }
+
+                Spacer()
+
+                HStack(spacing: 12) {
+                    HStack(spacing: 4) {
+                        Text("🍅").font(.callout)
+                        Text("\(context.state.pomodoroCount)")
+                            .font(.callout.bold())
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                    Text("·").foregroundStyle(Color.white.opacity(0.35))
+                    HStack(spacing: 4) {
+                        Text("☕").font(.callout)
+                        Text("\(completedBreaks)")
+                            .font(.callout.bold())
+                            .foregroundStyle(Color.white.opacity(0.6))
+                    }
+                    Text("·").foregroundStyle(Color.white.opacity(0.35))
+                    Text("\(elapsedMinutes)m")
+                        .font(.callout.bold())
+                        .foregroundStyle(Color.white.opacity(0.6))
+                }
             }
             .padding()
-            .activityBackgroundTint(Color(red: 0.0, green: 0.6, blue: 0.9).opacity(0.7))
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .activityBackgroundTint(Color(red: 0.0, green: 0.467, blue: 0.714).opacity(0.9))
             .activitySystemActionForegroundColor(.white)
         }
     }
@@ -137,12 +199,7 @@ struct WidgetLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    if isDone(context.state) {
-                        Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                            .font(.system(size: 32))
-                            .padding(.leading, 14)
-                            .frame(maxHeight: .infinity, alignment: .center)
-                    } else {
+                    if !isDone(context.state) {
                         VStack(alignment: .leading, spacing: 2) {
                             Text(context.state.sessionType == "Focus" ? "Focus" : "Break")
                                 .font(.subheadline.bold())
@@ -167,17 +224,32 @@ struct WidgetLiveActivity: Widget {
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    EmptyView()
+                    if !isDone(context.state) {
+                        let elapsedSecs = context.state.isPaused
+                            ? max(0, context.state.totalSeconds - context.state.timeRemaining)
+                            : max(0, Int(Date().timeIntervalSince1970 - (context.state.endTimestamp -
+                                    Double(context.state.totalSeconds))))
+                        Text("\(elapsedSecs / 60)m")
+                            .font(.system(size: 28, weight: .bold, design: .rounded))
+                            .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                            .frame(maxHeight: .infinity, alignment: .center)
+                            .padding(.trailing, 14)
+                    }
                 }
                 DynamicIslandExpandedRegion(.center) {
                     if isDone(context.state) {
-                        Text(
-                            context.state.sessionType == "Focus"
-                                ? "Time to take a break!" : "Time to get back to work!"
-                        )
-                        .font(.headline.bold())
-                        .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
-                        .padding(.top, 12)
+                        VStack(spacing: 4) {
+                            Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                                .font(.system(size: 36))
+                            Text(
+                                context.state.sessionType == "Focus"
+                                    ? "Time to take a break!" : "Time to get back to work!"
+                            )
+                            .font(.headline.bold())
+                            .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                            .multilineTextAlignment(.center)
+                        }
+                        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .center)
                     }
                 }
                 DynamicIslandExpandedRegion(.bottom) {
@@ -189,26 +261,52 @@ struct WidgetLiveActivity: Widget {
                             ? max(0, context.state.totalSeconds - context.state.timeRemaining)
                             : max(0, Int(Date().timeIntervalSince1970 - (context.state.endTimestamp -
                                     Double(context.state.totalSeconds))))
-                        let elapsedMinutes = elapsedSecs / 60
-                        HStack(spacing: 12) {
-                            HStack(spacing: 4) {
-                                Text("🍅").font(.callout)
-                                Text("\(context.state.pomodoroCount)")
+                        VStack(spacing: 6) {
+                            if context.state.isPaused {
+                                let fraction = 1.0 - (Double(context.state.timeRemaining) /
+                                    Double(context.state.totalSeconds))
+                                ZStack {
+                                    Capsule().fill(Color.white.opacity(0.2)).frame(height: 3)
+                                    ProgressView(value: fraction)
+                                        .progressViewStyle(.linear)
+                                        .tint(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                }
+                                .scaleEffect(y: 2, anchor: .center)
+                                .padding(.horizontal, 14)
+                            } else {
+                                let start = Date(timeIntervalSince1970: context.state.endTimestamp -
+                                    Double(context.state.totalSeconds))
+                                let end = Date(timeIntervalSince1970: context.state.endTimestamp)
+                                ZStack {
+                                    Capsule().fill(Color.white.opacity(0.2)).frame(height: 3)
+                                    ProgressView(timerInterval: start ... end, countsDown: false)
+                                        .progressViewStyle(.linear)
+                                        .tint(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                        .labelsHidden()
+                                }
+                                .scaleEffect(y: 2, anchor: .center)
+                            }
+                            HStack(spacing: 12) {
+                                HStack(spacing: 4) {
+                                    Text("🍅").font(.callout)
+                                    Text("\(context.state.pomodoroCount)")
+                                        .font(.callout.bold())
+                                        .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                }
+                                Text("·").foregroundStyle(.white.opacity(0.4))
+                                HStack(spacing: 4) {
+                                    Text("☕").font(.callout)
+                                    Text("\(completedBreaks)")
+                                        .font(.callout.bold())
+                                        .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                }
+                                Text("·").foregroundStyle(.white.opacity(0.4))
+                                Text("\(elapsedSecs / 60)m")
                                     .font(.callout.bold())
                                     .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             }
-                            Text("·").foregroundStyle(.white.opacity(0.4))
-                            HStack(spacing: 4) {
-                                Text("☕").font(.callout)
-                                Text("\(completedBreaks)")
-                                    .font(.callout.bold())
-                                    .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
-                            }
-
-                            Text("·").foregroundStyle(.white.opacity(0.4))
-                            Text("\(elapsedMinutes)m")
-                                .font(.callout.bold())
-                                .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                            .frame(maxWidth: .infinity, alignment: .leading)
+                            .padding(.horizontal, 14)
                         }
                     }
                 }
