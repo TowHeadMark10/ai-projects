@@ -9,6 +9,7 @@ struct PomodoroActivityAttributes: ActivityAttributes {
         var timeRemaining: Int
         var sessionType: String
         var totalSeconds: Int
+        var pomodoroCount: Int
     }
 }
 
@@ -136,67 +137,95 @@ struct WidgetLiveActivity: Widget {
         } dynamicIsland: { context in
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
-                    if !isDone(context.state) {
+                    if isDone(context.state) {
                         Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                            .font(.title2)
+                            .font(.system(size: 32))
                             .padding(.leading, 4)
+                            .padding(.top, 8)
+                    } else {
+                        VStack(alignment: .leading, spacing: 0) {
+                            Text(context.state.sessionType == "Focus" ? "Focus" : "Break")
+                                .font(.caption.bold())
+                                .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            if context.state.isPaused {
+                                Text(formatSeconds(context.state.timeRemaining))
+                                    .font(.system(size: 38, weight: .bold, design: .monospaced))
+                                    .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            } else {
+                                Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
+                                    .monospacedDigit()
+                                    .font(.system(size: 38, weight: .bold))
+                                    .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            }
+                        }
+                        .padding(.leading, 4)
                     }
                 }
                 DynamicIslandExpandedRegion(.trailing) {
-                    if !isDone(context.state) {
-                        if context.state.isPaused {
-                            Text(formatSeconds(context.state.timeRemaining))
-                                .font(.system(.body, design: .monospaced).bold())
-                                .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                        } else {
-                            Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
-                                .monospacedDigit()
-                                .font(.body.bold())
-                                .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                        }
-                    }
+                    EmptyView()
                 }
                 DynamicIslandExpandedRegion(.center) {
                     if isDone(context.state) {
-                        VStack(spacing: 2) {
-                            Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                                .font(.system(size: 28))
-                            Text(
-                                context.state.sessionType == "Focus"
-                                    ? "Time to take a break!" : "Time to get back to work!"
-                            )
-                            .font(.subheadline.bold())
-                            .foregroundStyle(.white)
-                            .multilineTextAlignment(.center)
+                        Text(
+                            context.state.sessionType == "Focus"
+                                ? "Time to take a break!" : "Time to get back to work!"
+                        )
+                        .font(.subheadline.bold())
+                        .foregroundStyle(.white)
+                    }
+                }
+                DynamicIslandExpandedRegion(.bottom) {
+                    if !isDone(context.state) {
+                        let remaining = context.state.isPaused
+                            ? context.state.timeRemaining
+                            : max(0, Int(context.state.endTimestamp - Date().timeIntervalSince1970))
+                        let elapsedMinutes = max(0, context.state.totalSeconds - remaining) / 60
+                        let completedBreaks = context.state.sessionType == "Focus"
+                            ? context.state.pomodoroCount
+                            : max(0, context.state.pomodoroCount - 1)
+                        HStack(spacing: 8) {
+                            HStack(spacing: 3) {
+                                Text("🍅")
+                                Text("\(context.state.pomodoroCount)").foregroundStyle(.white)
+                            }
+                            Text("|").foregroundStyle(.white.opacity(0.4))
+                            HStack(spacing: 3) {
+                                Text("☕")
+                                Text("\(completedBreaks)").foregroundStyle(.white)
+                            }
+                            Text("|").foregroundStyle(.white.opacity(0.4))
+                            Text("\(elapsedMinutes)m").foregroundStyle(.white)
                         }
+                        .font(.caption)
                     }
                 }
             } compactLeading: {
-                // Larger emoji to match bigger timer font
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
                     .font(.system(size: 16))
             } compactTrailing: {
-                if isDone(context.state) {
-                    Text("✅").font(.system(size: 16))
-                } else if context.state.isPaused {
-                    let mins = context.state.timeRemaining / 60
-                    let secs = context.state.timeRemaining % 60
-                    // Larger font — DI expands horizontally to fit
-                    Text(String(format: "%d:%02d", mins, secs))
-                        .monospacedDigit()
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 58)
-                } else {
-                    Text(timerInterval: Date() ... endDate(context.state), countsDown:
-                        true)
-                        .monospacedDigit()
-                        .font(.system(size: 16, weight: .bold))
-                        .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
-                        .multilineTextAlignment(.center)
-                        .frame(width: 58)
+                Group {
+                    if isDone(context.state) {
+                        Text("✅").font(.system(size: 16))
+                    } else if context.state.isPaused {
+                        let mins = context.state.timeRemaining / 60
+                        let secs = context.state.timeRemaining % 60
+                        // Larger font — DI expands horizontally to fit
+                        Text(String(format: "%d:%02d", mins, secs))
+                            .monospacedDigit()
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .multilineTextAlignment(.center)
+                            .frame(width: 58)
+                    } else {
+                        Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
+                            .monospacedDigit()
+                            .font(.system(size: 16, weight: .bold))
+                            .foregroundStyle(Color(red: 1.0, green: 0.6, blue: 0.0))
+                            .multilineTextAlignment(.center)
+                            .frame(width: 58)
+                    }
                 }
+                .animation(.none, value: context.state.isPaused)
             } minimal: {
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
             }

@@ -119,6 +119,8 @@ export default function Index() {
   // Tracks whether we've already sent the switch to live countdown (< 10 min) this session.
   // Needed because the JS timer can skip seconds=599 exactly when the app is in the background.
   const switchedToLiveCountdownRef = useRef(false);
+  //Pomodoro count for expanded DI
+  const pomodoroCountRef = useRef(pomodoroCount);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -218,6 +220,10 @@ export default function Index() {
   useEffect(() => {
     activeFishRef.current = activeFish;
   }, [activeFish]);
+  // Keep the pomodoro count for expanded DI syncronized
+  useEffect(() => {
+    pomodoroCountRef.current = pomodoroCount;
+  }, [pomodoroCount]);
 
   // Spawns one fish. currentSeconds lets the caller pass the exact countdown
   // value it has in scope — avoids stale-ref issues across multiple sessions.
@@ -297,18 +303,26 @@ export default function Index() {
     if (isRunning) {
       // Save when the timer should end so we can recalculate after going to background
       timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
+
       // Start or resume the Live Activity on iOS
       if (Platform.OS === "ios") {
         const endTimestamp = timerEndTimeRef.current / 1000;
-        // Always startActivity — updates in-place if active, creates new if not
-        startActivity(
-          isBreakRef.current ? "Break" : "Focus",
-          isBreakRef.current ? breakTime : workTime,
-          endTimestamp,
-        ).then(() => {
+        if (liveActivityActiveRef.current && !activityIsDoneRef.current) {
+          // FocusMode resume: activity already running, just update the endTimestamp.
+          // Calling startActivity again triggers async existing.update() in Swift which
+          // briefly flashes stale state (the 1:59 bug). updateActivity is a clean update.
+          updateActivity(endTimestamp, false, secondsRef.current);
+        } else {
+          // First start or new session after done state — create/replace the activity.
+          startActivity(
+            isBreakRef.current ? "Break" : "Focus",
+            isBreakRef.current ? breakTime : workTime,
+            endTimestamp,
+            pomodoroCountRef.current,
+          );
           liveActivityActiveRef.current = true;
-          switchedToLiveCountdownRef.current = false; // reset on each new session/resume
-        });
+          switchedToLiveCountdownRef.current = false;
+        }
       }
       // Schedule a notification for when the timer ends
       (async () => {
@@ -323,8 +337,12 @@ export default function Index() {
             categoryIdentifier: "timer",
           },
           trigger: {
+            // Calculate remaining ms at scheduling time to avoid the 1s early delivery issue
             type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds,
+            seconds: Math.max(
+              1,
+              Math.ceil((timerEndTimeRef.current! - Date.now()) / 1000),
+            ),
           },
         });
         notificationIdRef.current = id;
