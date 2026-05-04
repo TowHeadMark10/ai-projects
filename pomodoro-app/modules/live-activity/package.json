@@ -1,0 +1,13 @@
+{
+  "name": "live-activity",
+  "version": "1.0.0",
+  "description": "Native Live Activities bridge for Expo",
+  "main": "index.ts",
+  "files": [
+    "android",
+    "ios",
+    "src",
+    "index.ts",
+    "expo-module.config.json"
+  ]
+}

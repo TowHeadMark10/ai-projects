@@ -24,6 +24,12 @@ import {
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
+// Live Activities bridge — iOS only
+import {
+  startActivity,
+  updateActivity,
+  dismissActivity,
+} from "../modules/live-activity";
 
 // Get screen height once so fish can spawn across the full aquarium
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -63,6 +69,8 @@ const FISH_TYPES = [
 const MAX_FISH = 20;
 
 export default function Index() {
+  // Tracks whether a Live Activity is currently active (iOS only)
+  const liveActivityActiveRef = useRef(false);
   // Hook to navigate between screens
   const router = useRouter();
   // Keep the screen awake while the timer is running so the user can see the countdown
@@ -104,6 +112,15 @@ export default function Index() {
   // Crab walking animation
   const crabX = useRef(new Animated.Value(0)).current;
   const crabScale = useRef(new Animated.Value(-1)).current;
+  //Timer ends in live activity widget
+  const timerJustEndedRef = useRef(false);
+  //Ends live activity
+  const activityIsDoneRef = useRef(false);
+  // Tracks whether we've already sent the switch to live countdown (< 10 min) this session.
+  // Needed because the JS timer can skip seconds=599 exactly when the app is in the background.
+  const switchedToLiveCountdownRef = useRef(false);
+  //Pomodoro count for expanded DI
+  const pomodoroCountRef = useRef(pomodoroCount);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -155,6 +172,22 @@ export default function Index() {
     mutedRef.current = muted;
   }, [muted]);
 
+  // Send Live Activity update every minute (>10 min left) and once at 9:59 to switch to live countdown
+  useEffect(() => {
+    if (isRunning && Platform.OS === "ios" && liveActivityActiveRef.current) {
+      const isMinuteTick = seconds % 60 === 59;
+      // Fire once the first time seconds drops below 600 — avoids missing exact value 599
+      // when JS skips seconds in the background
+      const isSwitchPoint =
+        seconds < 600 && seconds > 0 && !switchedToLiveCountdownRef.current;
+      if (isSwitchPoint) switchedToLiveCountdownRef.current = true;
+      if (isMinuteTick || isSwitchPoint) {
+        const endTimestamp = (Date.now() + seconds * 1000) / 1000;
+        updateActivity(endTimestamp, false, seconds);
+      }
+    }
+  }, [seconds]);
+
   // List of active fish currently in the tank
   const [activeFish, setActiveFish] = useState<
     {
@@ -187,16 +220,24 @@ export default function Index() {
   useEffect(() => {
     activeFishRef.current = activeFish;
   }, [activeFish]);
+  // Keep the pomodoro count for expanded DI syncronized
+  useEffect(() => {
+    pomodoroCountRef.current = pomodoroCount;
+  }, [pomodoroCount]);
 
   // Spawns one fish. currentSeconds lets the caller pass the exact countdown
   // value it has in scope — avoids stale-ref issues across multiple sessions.
   // Clamps currentSeconds to [0, workTime] so a post-session breakTime value
   // (which is > workTime) doesn't produce negative elapsed and wrong fish types.
-  function spawnOneFish(fromRight = false, currentSeconds = secondsRef.current) {
+  function spawnOneFish(
+    fromRight = false,
+    currentSeconds = secondsRef.current,
+  ) {
     try {
       // If currentSeconds > workTime the timer has already ended (seconds flipped
       // to breakTime). Treat that as seconds=0 so progress stays valid [0,1].
-      const safeSecs = currentSeconds > workTimeRef.current ? 0 : Math.max(0, currentSeconds);
+      const safeSecs =
+        currentSeconds > workTimeRef.current ? 0 : Math.max(0, currentSeconds);
       const elapsed = workTimeRef.current - safeSecs;
       const progress = Math.min(1, Math.max(0, elapsed / workTimeRef.current));
       const maxTypeIndex = Math.floor(progress * FISH_TYPES.length);
@@ -246,7 +287,10 @@ export default function Index() {
     const elapsed = workTimeRef.current - seconds;
     if (elapsed <= 0) return;
     // Clamp to 3s minimum so short timers (< 2 min) still fill the tank
-    const fishInterval = Math.max(3, (workTimeRef.current - 120) / (MAX_FISH - 2));
+    const fishInterval = Math.max(
+      3,
+      (workTimeRef.current - 120) / (MAX_FISH - 2),
+    );
     const fishDue = Math.floor(elapsed / fishInterval);
     const fishPresent = Math.max(0, activeFishRef.current.length - 2);
     if (fishDue > fishPresent) {
@@ -259,6 +303,27 @@ export default function Index() {
     if (isRunning) {
       // Save when the timer should end so we can recalculate after going to background
       timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
+
+      // Start or resume the Live Activity on iOS
+      if (Platform.OS === "ios") {
+        const endTimestamp = timerEndTimeRef.current / 1000;
+        if (liveActivityActiveRef.current && !activityIsDoneRef.current) {
+          // FocusMode resume: activity already running, just update the endTimestamp.
+          // Calling startActivity again triggers async existing.update() in Swift which
+          // briefly flashes stale state (the 1:59 bug). updateActivity is a clean update.
+          updateActivity(endTimestamp, false, secondsRef.current);
+        } else {
+          // First start or new session after done state — create/replace the activity.
+          startActivity(
+            isBreakRef.current ? "Break" : "Focus",
+            isBreakRef.current ? breakTime : workTime,
+            endTimestamp,
+            pomodoroCountRef.current,
+          );
+          liveActivityActiveRef.current = true;
+          switchedToLiveCountdownRef.current = false;
+        }
+      }
       // Schedule a notification for when the timer ends
       (async () => {
         // Cancel ALL pending notifications to avoid stale ones from previous sessions
@@ -272,8 +337,12 @@ export default function Index() {
             categoryIdentifier: "timer",
           },
           trigger: {
+            // Calculate remaining ms at scheduling time to avoid the 1s early delivery issue
             type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
-            seconds,
+            seconds: Math.max(
+              1,
+              Math.ceil((timerEndTimeRef.current! - Date.now()) / 1000),
+            ),
           },
         });
         notificationIdRef.current = id;
@@ -282,6 +351,11 @@ export default function Index() {
         setSeconds((s) => {
           if (s <= 1) {
             clearInterval(IntervalRef.current!);
+            // Flag for the pause effect below — it will send the "done" state (timeRemaining=0)
+            if (Platform.OS === "ios" && liveActivityActiveRef.current) {
+              timerJustEndedRef.current = true;
+              activityIsDoneRef.current = true;
+            }
             // Cancel ALL notifications — using cancelAll (not just by ID) eliminates
             // the race condition where JS drift lets the notification fire before cancel
             Notifications.cancelAllScheduledNotificationsAsync();
@@ -311,6 +385,19 @@ export default function Index() {
         notificationIdRef.current = null;
       }
       clearInterval(IntervalRef.current!);
+      // Pause the Live Activity — show static time and "Paused" label
+      if (Platform.OS === "ios" && liveActivityActiveRef.current) {
+        if (timerJustEndedRef.current) {
+          timerJustEndedRef.current = false;
+          updateActivity(Date.now() / 1000, true, 0); // send "done" state
+        } else {
+          updateActivity(
+            Date.now() / 1000 + secondsRef.current,
+            true,
+            secondsRef.current,
+          );
+        }
+      }
     }
     return () => clearInterval(IntervalRef.current!);
   }, [isRunning]);
@@ -381,13 +468,19 @@ export default function Index() {
           setIsRunning(false);
         }
       } else if (nextState === "active") {
+        // Dismiss done Live Activity when user opens the app
+        if (Platform.OS === "ios" && activityIsDoneRef.current) {
+          dismissActivity();
+          activityIsDoneRef.current = false;
+          liveActivityActiveRef.current = false;
+        }
         // Spawn catch-up fish proportional to time spent in background.
         // Distribute them across the session so they get the right types
         // (early fish = small, later fish = larger) rather than all using
         // the current (possibly post-session) secondsRef value.
         if (backgroundStartTimeRef.current) {
           const bgElapsed = Date.now() - backgroundStartTimeRef.current;
-          const baseDelay = (workTimeRef.current * 0.7 / MAX_FISH) * 1000;
+          const baseDelay = ((workTimeRef.current * 0.7) / MAX_FISH) * 1000;
           const fishToSpawn = Math.min(
             Math.floor(bgElapsed / baseDelay),
             MAX_FISH - activeFishRef.current.length,
@@ -395,7 +488,9 @@ export default function Index() {
           for (let i = 0; i < fishToSpawn; i++) {
             // Spread catch-up fish evenly across the work session
             const catchUpProgress = (i + 1) / Math.max(fishToSpawn, 1);
-            const catchUpSecs = Math.round(workTimeRef.current * (1 - catchUpProgress));
+            const catchUpSecs = Math.round(
+              workTimeRef.current * (1 - catchUpProgress),
+            );
             spawnOneFish(false, catchUpSecs);
           }
         }
@@ -545,6 +640,14 @@ export default function Index() {
 
   // Reset goes back to work mode
   function reset() {
+    if (Platform.OS === "ios" && liveActivityActiveRef.current) {
+      dismissActivity();
+      liveActivityActiveRef.current = false;
+      switchedToLiveCountdownRef.current = false;
+    }
+    // Clear done-state flags so a previous session doesn't pollute the next one
+    activityIsDoneRef.current = false;
+    timerJustEndedRef.current = false;
     setIsRunning(false);
     setisBreak(false);
     setSeconds(workTime);
@@ -571,8 +674,16 @@ export default function Index() {
     const bobDuration = 1200 + Math.random() * 1000;
     Animated.loop(
       Animated.sequence([
-        Animated.timing(fish.yDrift, { toValue: -8, duration: bobDuration, useNativeDriver: true }),
-        Animated.timing(fish.yDrift, { toValue: 8, duration: bobDuration, useNativeDriver: true }),
+        Animated.timing(fish.yDrift, {
+          toValue: -8,
+          duration: bobDuration,
+          useNativeDriver: true,
+        }),
+        Animated.timing(fish.yDrift, {
+          toValue: 8,
+          duration: bobDuration,
+          useNativeDriver: true,
+        }),
       ]),
       { resetBeforeIteration: false },
     ).start();
@@ -588,16 +699,22 @@ export default function Index() {
   }) {
     startBob(fish);
     fish.scaleX.setValue(-1);
-    Animated.timing(fish.x, { toValue: 400, duration: fish.speed, useNativeDriver: true })
-      .start(({ finished }) => {
+    Animated.timing(fish.x, {
+      toValue: 400,
+      duration: fish.speed,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      fish.scaleX.setValue(1);
+      Animated.timing(fish.x, {
+        toValue: -50,
+        duration: fish.speed,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
         if (!finished) return;
-        fish.scaleX.setValue(1);
-        Animated.timing(fish.x, { toValue: -50, duration: fish.speed, useNativeDriver: true })
-          .start(({ finished }) => {
-            if (!finished) return;
-            swimNewFish(fish);
-          });
+        swimNewFish(fish);
       });
+    });
   }
 
   // Starts a fish from the right side, swimming left then looping
@@ -610,16 +727,22 @@ export default function Index() {
   }) {
     startBob(fish);
     fish.scaleX.setValue(1);
-    Animated.timing(fish.x, { toValue: -50, duration: fish.speed, useNativeDriver: true })
-      .start(({ finished }) => {
+    Animated.timing(fish.x, {
+      toValue: -50,
+      duration: fish.speed,
+      useNativeDriver: true,
+    }).start(({ finished }) => {
+      if (!finished) return;
+      fish.scaleX.setValue(-1);
+      Animated.timing(fish.x, {
+        toValue: 400,
+        duration: fish.speed,
+        useNativeDriver: true,
+      }).start(({ finished }) => {
         if (!finished) return;
-        fish.scaleX.setValue(-1);
-        Animated.timing(fish.x, { toValue: 400, duration: fish.speed, useNativeDriver: true })
-          .start(({ finished }) => {
-            if (!finished) return;
-            swimNewFish(fish);
-          });
+        swimNewFish(fish);
       });
+    });
   }
 
   // Plays alarm sound when work session ends

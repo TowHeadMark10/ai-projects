@@ -1,0 +1,10 @@
+{
+  "platforms": ["apple", "android", "web"],
+  "apple": {
+    "modules": ["LiveActivityModule"],
+    "podspecPath": "ios/LiveActivity.podspec"
+  },
+  "android": {
+    "modules": ["expo.modules.liveactivity.LiveActivityModule"]
+  }
+}
