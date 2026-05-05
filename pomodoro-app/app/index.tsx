@@ -21,6 +21,7 @@ import {
   Platform,
   Modal,
   Keyboard,
+  useWindowDimensions,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -129,6 +130,9 @@ export default function Index() {
   // Gets the safe area insets so we can position the button below the status bar
   // on any iPhone (with or without notch/Dynamic Island)
   const insets = useSafeAreaInsets();
+  // Responsive timer font size: scales with screen width
+  const { width: screenWidth } = useWindowDimensions();
+  const timerFontSize = Math.floor(screenWidth * 0.28);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -265,7 +269,8 @@ export default function Index() {
         speed: type.speed * (0.7 + Math.random() * 0.6),
         x: new Animated.Value(fromRight ? SCREEN_WIDTH + 50 : -50),
         scaleX: new Animated.Value(fromRight ? 1 : -1),
-        y: Math.random() * (SCREEN_HEIGHT - 60) + 20,
+        // Cap Y so fish spawn above the sand (60px from bottom), accounting for fish emoji size
+        y: Math.random() * (SCREEN_HEIGHT - 60 - type.size) + 20,
         yDrift: new Animated.Value(0),
       };
       if (fromRight) swimNewFishFromRight(newFish);
@@ -2779,28 +2784,34 @@ export default function Index() {
               <View style={{ marginBottom: 4 }}>
                 {/* White outline layer */}
                 <Text
+                  numberOfLines={1}
                   style={{
-                    fontSize: 135,
+                    fontSize: timerFontSize,
                     color: "transparent",
                     fontWeight: "bold",
                     letterSpacing: -2,
                     textShadowColor: "rgba(255,255,255,0.9)",
                     textShadowOffset: { width: 0, height: 0 },
                     textShadowRadius: 30,
+                    // Makes all digits equal-width so the font size stays consistent
+                    fontVariant: ["tabular-nums"],
                   }}
                 >
                   {formatTime(seconds)}
                 </Text>
                 {/* Transparent fill layer on top */}
                 <Text
+                  numberOfLines={1}
                   style={{
-                    fontSize: 135,
+                    fontSize: timerFontSize,
                     color: "rgba(255,255,255,0.6)",
                     fontWeight: "bold",
                     letterSpacing: -2,
                     position: "absolute",
                     top: 0,
                     left: 0,
+                    // Makes all digits equal-width so the font size stays consistent
+                    fontVariant: ["tabular-nums"],
                   }}
                 >
                   {formatTime(seconds)}
@@ -2883,8 +2894,7 @@ export default function Index() {
               style={{
                 flexShrink: 1,
                 alignItems: "center",
-                width: "100%",
-                maxWidth: 400,
+                alignSelf: "stretch",
                 borderRadius: 24,
                 overflow: "hidden",
                 padding: 24,
@@ -2935,7 +2945,7 @@ export default function Index() {
                     borderRadius: 50,
                     justifyContent: "center",
                     height: 52,
-                    width: 100,
+                    minWidth: 80,
                   }}
                 >
                   <Text
@@ -2963,13 +2973,12 @@ export default function Index() {
               >
                 FILTER BY
               </Text>
+              {/* All button fixed + categories scrollable */}
               <View
                 style={{
                   flexDirection: "row",
-                  flexWrap: "wrap",
                   gap: 6,
                   marginTop: 8,
-                  justifyContent: "center",
                   zIndex: 2,
                 }}
               >
@@ -2992,30 +3001,37 @@ export default function Index() {
                 >
                   <Text style={{ color: "#fff", fontSize: 15 }}>All</Text>
                 </TouchableOpacity>
-                {CATEGORIES.map((cat) => (
-                  <TouchableOpacity
-                    key={cat.label}
-                    onPress={() => setFilterCategory(cat.label)}
-                    style={{
-                      backgroundColor:
-                        filterCategory === cat.label
-                          ? "#ff6b35"
-                          : "rgba(255,255,255,0.15)",
-                      paddingHorizontal: 18,
-                      paddingVertical: 12,
-                      borderRadius: 22,
-                      borderWidth: 1,
-                      borderColor:
-                        filterCategory === cat.label
-                          ? "#ff6b35"
-                          : "rgba(255,255,255,0.15)",
-                    }}
-                  >
-                    <Text style={{ color: "#fff", fontSize: 15 }}>
-                      {cat.emoji} {cat.label}
-                    </Text>
-                  </TouchableOpacity>
-                ))}
+                <ScrollView
+                  horizontal
+                  showsHorizontalScrollIndicator={false}
+                  style={{ flex: 1 }}
+                  contentContainerStyle={{ flexDirection: "row", gap: 6 }}
+                >
+                  {CATEGORIES.map((cat) => (
+                    <TouchableOpacity
+                      key={cat.label}
+                      onPress={() => setFilterCategory(cat.label)}
+                      style={{
+                        backgroundColor:
+                          filterCategory === cat.label
+                            ? "#ff6b35"
+                            : "rgba(255,255,255,0.15)",
+                        paddingHorizontal: 18,
+                        paddingVertical: 12,
+                        borderRadius: 22,
+                        borderWidth: 1,
+                        borderColor:
+                          filterCategory === cat.label
+                            ? "#ff6b35"
+                            : "rgba(255,255,255,0.15)",
+                      }}
+                    >
+                      <Text style={{ color: "#fff", fontSize: 15 }}>
+                        {cat.emoji} {cat.label}
+                      </Text>
+                    </TouchableOpacity>
+                  ))}
+                </ScrollView>
               </View>
 
               {/* Task list — only rendered when there are tasks so the panel
