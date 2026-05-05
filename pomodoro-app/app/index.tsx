@@ -85,6 +85,8 @@ export default function Index() {
   const [breakTime, setBreakTime] = useState(DEFAULT_BREAK);
   // Whether the timer is currently running
   const [isRunning, setIsRunning] = useState(false);
+  // Tracks if the timer has been started at least once (to show Resume vs Start)
+  const [hasStarted, setHasStarted] = useState(false);
   // Whether we are in work mode or break mode
   const [isBreak, setisBreak] = useState(false);
   // Counts how many pomodoros (work sessions) have been completed
@@ -291,7 +293,10 @@ export default function Index() {
         useNativeDriver: true,
       }).start();
       spawnFishNowRef.current = () => spawnOneFish();
-      spawnOneFish(false, secondsRef.current); // initial fish from left
+      // Only spawn initial fish on fresh start, not on resume
+      if (activeFish.length === 0) {
+        spawnOneFish(false, secondsRef.current);
+      }
     } else {
       spawnFishNowRef.current = null;
     }
@@ -678,6 +683,7 @@ export default function Index() {
 
   // Reset goes back to work mode
   function reset() {
+    setHasStarted(false); // add after setIsRunning(false)
     if (Platform.OS === "ios" && liveActivityActiveRef.current) {
       dismissActivity();
       liveActivityActiveRef.current = false;
@@ -2854,7 +2860,10 @@ export default function Index() {
                 }}
               >
                 <TouchableOpacity
-                  onPress={() => setIsRunning(!isRunning)}
+                  onPress={() => {
+                    if (!isRunning) setHasStarted(true);
+                    setIsRunning(!isRunning);
+                  }}
                   style={{
                     backgroundColor: isRunning
                       ? "rgba(255,255,255,0.15)"
@@ -2870,7 +2879,7 @@ export default function Index() {
                   >
                     {isRunning
                       ? "Pause"
-                      : seconds < (isBreak ? breakTime : workTime)
+                      : hasStarted
                         ? "Resume"
                         : isBreak
                           ? "Start break"
