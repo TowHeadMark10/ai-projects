@@ -2868,7 +2868,13 @@ export default function Index() {
                   <Text
                     style={{ color: "#fff", fontSize: 16, fontWeight: "bold" }}
                   >
-                    {isRunning ? "Pause" : isBreak ? "Start break" : "Start"}
+                    {isRunning
+                      ? "Pause"
+                      : seconds < (isBreak ? breakTime : workTime)
+                        ? "Resume"
+                        : isBreak
+                          ? "Start break"
+                          : "Start"}
                   </Text>
                 </TouchableOpacity>
                 <TouchableOpacity
