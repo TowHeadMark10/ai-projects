@@ -137,7 +137,9 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   // Responsive timer font size: scales with screen width
   const { width: screenWidth } = useWindowDimensions();
-  const timerFontSize = Math.floor(screenWidth * 0.28);
+  const timerFontSize = Math.floor(
+    screenWidth * (screenWidth > 420 ? 0.29 : 0.28),
+  );
   // Mute notification
   const notificationTappedRef = useRef(false);
 
