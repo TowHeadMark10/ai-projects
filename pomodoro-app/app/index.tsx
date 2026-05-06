@@ -438,6 +438,7 @@ export default function Index() {
               isBreakRef.current ? playAlarm() : playChime();
             }
             setIsRunning(false);
+            setHasStarted(false); // reset so button shows "Start break" / "Start" instead of "Resume"
             // Exit aquarium mode directly (avoids stale closure in toggleAquariumMode)
             if (aquariumModeRef.current) {
               Animated.timing(uiOpacity, {
@@ -610,6 +611,7 @@ export default function Index() {
             restartFishSpawnRef.current?.();
           } else {
             setIsRunning(false);
+            setHasStarted(false); // reset so button shows "Start break"/"Start" instead of "Resume"
             // Exit aquarium mode if active — timer ended while app was in background
             if (aquariumModeRef.current) {
               Animated.timing(uiOpacity, {
