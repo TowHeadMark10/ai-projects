@@ -138,6 +138,8 @@ export default function Index() {
   // Responsive timer font size: scales with screen width
   const { width: screenWidth } = useWindowDimensions();
   const timerFontSize = Math.floor(screenWidth * 0.28);
+  // Mute notification
+  const notificationTappedRef = useRef(false);
 
   useEffect(() => {
     secondsRef.current = seconds;
@@ -192,6 +194,32 @@ export default function Index() {
 
   useEffect(() => {
     mutedRef.current = muted;
+  }, [muted]);
+
+  // Reschedule notification when muted changes so the sound setting stays in sync.
+  // Without this, a notification scheduled while unmuted would still carry sound
+  // even after the user mutes mid-session.
+  useEffect(() => {
+    if (!isRunningRef.current || !timerEndTimeRef.current) return;
+    const endTime = timerEndTimeRef.current;
+    (async () => {
+      await Notifications.cancelAllScheduledNotificationsAsync();
+      const id = await Notifications.scheduleNotificationAsync({
+        content: {
+          title: isBreakRef.current
+            ? "🍅 Break over!"
+            : "🍅 Pomodoro complete!",
+          body: isBreakRef.current ? "Time to focus." : "Time for a break.",
+          sound: muted ? false : "done.mp3",
+          categoryIdentifier: "timer",
+        },
+        trigger: {
+          type: Notifications.SchedulableTriggerInputTypes.TIME_INTERVAL,
+          seconds: Math.max(1, Math.ceil((endTime - Date.now()) / 1000)),
+        },
+      });
+      notificationIdRef.current = id;
+    })();
   }, [muted]);
 
   // Send Live Activity update every minute (>10 min left) and once at 9:59 to switch to live countdown
@@ -369,7 +397,7 @@ export default function Index() {
           content: {
             title: isBreak ? "🍅 Break over!" : "🍅 Pomodoro complete!",
             body: isBreak ? "Time to focus." : "Time for a break.",
-            sound: mutedRef.current ? false : "alarm.mp3",
+            sound: mutedRef.current ? false : "done.mp3",
             categoryIdentifier: "timer",
           },
           trigger: {
@@ -396,8 +424,15 @@ export default function Index() {
             // the race condition where JS drift lets the notification fire before cancel
             Notifications.cancelAllScheduledNotificationsAsync();
             notificationIdRef.current = null;
-            // Play sound now using refs — outside state setter to avoid race with notification
-            if (!mutedRef.current) {
+
+            // Skip alarm if notification already alerted the user (they tapped to enter)
+            const endedInBackground =
+              timerEndTimeRef.current !== null &&
+              Date.now() > timerEndTimeRef.current - 1000;
+            const alreadyAlerted =
+              endedInBackground || notificationTappedRef.current;
+            notificationTappedRef.current = false;
+            if (!mutedRef.current && !alreadyAlerted) {
               isBreakRef.current ? playAlarm() : playChime();
             }
             setIsRunning(false);
@@ -541,6 +576,15 @@ export default function Index() {
           }
         }
         backgroundStartTimeRef.current = null;
+
+        // Suppress in-app alarm if timer ended while in background — notification already alerted
+        if (
+          !focusMode &&
+          timerEndTimeRef.current &&
+          Date.now() >= timerEndTimeRef.current
+        ) {
+          notificationTappedRef.current = true;
+        }
 
         if (focusMode && wasRunningRef.current) {
           // Focus mode: resume timer
@@ -818,7 +862,7 @@ export default function Index() {
   // Plays alarm sound when work session ends
   async function playChime() {
     const { sound } = await Audio.Sound.createAsync(
-      require("../assets/sounds/alarm.mp3"),
+      require("../assets/sounds/done.mp3"),
       { shouldPlay: true },
     );
     sound.setOnPlaybackStatusUpdate((status) => {
@@ -829,7 +873,7 @@ export default function Index() {
   // Plays an alarm sound when break session ends
   async function playAlarm() {
     const { sound } = await Audio.Sound.createAsync(
-      require("../assets/sounds/alarm.mp3"),
+      require("../assets/sounds/done.mp3"),
       { shouldPlay: true },
     );
     sound.setOnPlaybackStatusUpdate((status) => {

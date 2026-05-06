@@ -19,13 +19,13 @@ class AudioPlayerModule: NSObject {
     }
 
     guard let url = Bundle.main.url(forResource: "aquariumBg", withExtension: "m4a") else {
-      print("aquariumBg.wav not found in bundle")
+      print("aquariumBg.m4a not found in bundle")
       return
     }
 
     do {
       let p = try AVAudioPlayer(contentsOf: url)
-      p.numberOfLoops = -1 // infinite gapless loop — no gap between repetitions
+      p.numberOfLoops = -1
       p.volume = 1.0
       p.prepareToPlay()
       p.play()

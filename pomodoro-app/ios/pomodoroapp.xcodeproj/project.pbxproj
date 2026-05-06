@@ -13,7 +13,7 @@
 		5D8ADABE2FAAB76A009DBD01 /* AudioPlayerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D8ADABC2FAAB76A009DBD01 /* AudioPlayerModule.m */; };
 		5D8ADABF2FAAB76A009DBD01 /* AudioPlayerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8ADABD2FAAB76A009DBD01 /* AudioPlayerModule.swift */; };
 		5D8ADAC32FAAD65A009DBD01 /* aquariumBg.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 5D8ADAC22FAAD65A009DBD01 /* aquariumBg.m4a */; };
-		70C9B12E4ADB4AB1A08A905E /* alarm.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 8E934721946C47CBB87B2C29 /* alarm.mp3 */; };
+		70C9B12E4ADB4AB1A08A905E /* done.mp3 in Resources */ = {isa = PBXBuildFile; fileRef = 8E934721946C47CBB87B2C29 /* done.mp3 */; };
 		9815C8168760CFDCAECF1454 /* PrivacyInfo.xcprivacy in Resources */ = {isa = PBXBuildFile; fileRef = 5270F53042EA1C22C24451C5 /* PrivacyInfo.xcprivacy */; };
 		AA000001AA000001AA000001 /* LiveActivityModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = AA000002AA000002AA000002 /* LiveActivityModule.swift */; };
 		AA000003AA000003AA000003 /* LiveActivityModule.m in Sources */ = {isa = PBXBuildFile; fileRef = AA000004AA000004AA000004 /* LiveActivityModule.m */; };
@@ -62,7 +62,7 @@
 		5D8ADABD2FAAB76A009DBD01 /* AudioPlayerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioPlayerModule.swift; path = pomodoroapp/AudioPlayerModule.swift; sourceTree = "<group>"; };
 		5D8ADAC22FAAD65A009DBD01 /* aquariumBg.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = aquariumBg.m4a; path = pomodoroapp/aquariumBg.m4a; sourceTree = "<group>"; };
 		872C382454BEE7A4503783DD /* libPods-pomodoroapp.a */ = {isa = PBXFileReference; explicitFileType = archive.ar; includeInIndex = 0; path = "libPods-pomodoroapp.a"; sourceTree = BUILT_PRODUCTS_DIR; };
-		8E934721946C47CBB87B2C29 /* alarm.mp3 */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = alarm.mp3; path = pomodoroapp/alarm.mp3; sourceTree = "<group>"; };
+		8E934721946C47CBB87B2C29 /* done.mp3 */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = done.mp3; path = pomodoroapp/done.mp3; sourceTree = "<group>"; };
 		A6DAFF2E1F0CF7F1927E45B8 /* Pods-pomodoroapp.release.xcconfig */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xcconfig; name = "Pods-pomodoroapp.release.xcconfig"; path = "Target Support Files/Pods-pomodoroapp/Pods-pomodoroapp.release.xcconfig"; sourceTree = "<group>"; };
 		AA000002AA000002AA000002 /* LiveActivityModule.swift */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.swift; name = LiveActivityModule.swift; path = pomodoroapp/LiveActivityModule.swift; sourceTree = "<group>"; };
 		AA000004AA000004AA000004 /* LiveActivityModule.m */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = sourcecode.c.objc; name = LiveActivityModule.m; path = pomodoroapp/LiveActivityModule.m; sourceTree = "<group>"; };
@@ -133,7 +133,7 @@
 				13B07FB61A68108700A75B9A /* Info.plist */,
 				AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */,
 				4B96AE6EE8334F46877BCFB0 /* chime.mp3 */,
-				8E934721946C47CBB87B2C29 /* alarm.mp3 */,
+				8E934721946C47CBB87B2C29 /* done.mp3 */,
 				5270F53042EA1C22C24451C5 /* PrivacyInfo.xcprivacy */,
 			);
 			name = pomodoroapp;
@@ -321,7 +321,7 @@
 				5D8ADAC32FAAD65A009DBD01 /* aquariumBg.m4a in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
 				ED45479282C049EC9D689161 /* chime.mp3 in Resources */,
-				70C9B12E4ADB4AB1A08A905E /* alarm.mp3 in Resources */,
+				70C9B12E4ADB4AB1A08A905E /* done.mp3 in Resources */,
 				9815C8168760CFDCAECF1454 /* PrivacyInfo.xcprivacy in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
