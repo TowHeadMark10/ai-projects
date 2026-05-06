@@ -10,7 +10,6 @@
 		13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 13B07FB51A68108700A75B9A /* Images.xcassets */; };
 		3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */ = {isa = PBXBuildFile; fileRef = AA286B85B6C04FC6940260E9 /* SplashScreen.storyboard */; };
 		43922AD569731C418EF214BD /* libPods-pomodoroapp.a in Frameworks */ = {isa = PBXBuildFile; fileRef = 872C382454BEE7A4503783DD /* libPods-pomodoroapp.a */; };
-		5D8ADABB2FAAB66F009DBD01 /* fishTank.wav in Resources */ = {isa = PBXBuildFile; fileRef = 5D8ADABA2FAAB66E009DBD01 /* fishTank.wav */; };
 		5D8ADABE2FAAB76A009DBD01 /* AudioPlayerModule.m in Sources */ = {isa = PBXBuildFile; fileRef = 5D8ADABC2FAAB76A009DBD01 /* AudioPlayerModule.m */; };
 		5D8ADABF2FAAB76A009DBD01 /* AudioPlayerModule.swift in Sources */ = {isa = PBXBuildFile; fileRef = 5D8ADABD2FAAB76A009DBD01 /* AudioPlayerModule.swift */; };
 		5D8ADAC32FAAD65A009DBD01 /* aquariumBg.m4a in Resources */ = {isa = PBXBuildFile; fileRef = 5D8ADAC22FAAD65A009DBD01 /* aquariumBg.m4a */; };
@@ -59,7 +58,6 @@
 		13B07FB61A68108700A75B9A /* Info.plist */ = {isa = PBXFileReference; fileEncoding = 4; includeInIndex = 0; lastKnownFileType = text.plist.xml; name = Info.plist; path = pomodoroapp/Info.plist; sourceTree = "<group>"; };
 		4B96AE6EE8334F46877BCFB0 /* chime.mp3 */ = {isa = PBXFileReference; explicitFileType = undefined; fileEncoding = 9; includeInIndex = 0; lastKnownFileType = unknown; name = chime.mp3; path = pomodoroapp/chime.mp3; sourceTree = "<group>"; };
 		5270F53042EA1C22C24451C5 /* PrivacyInfo.xcprivacy */ = {isa = PBXFileReference; includeInIndex = 1; lastKnownFileType = text.xml; name = PrivacyInfo.xcprivacy; path = pomodoroapp/PrivacyInfo.xcprivacy; sourceTree = "<group>"; };
-		5D8ADABA2FAAB66E009DBD01 /* fishTank.wav */ = {isa = PBXFileReference; lastKnownFileType = audio.wav; name = fishTank.wav; path = pomodoroapp/fishTank.wav; sourceTree = "<group>"; };
 		5D8ADABC2FAAB76A009DBD01 /* AudioPlayerModule.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; name = AudioPlayerModule.m; path = pomodoroapp/AudioPlayerModule.m; sourceTree = "<group>"; };
 		5D8ADABD2FAAB76A009DBD01 /* AudioPlayerModule.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; name = AudioPlayerModule.swift; path = pomodoroapp/AudioPlayerModule.swift; sourceTree = "<group>"; };
 		5D8ADAC22FAAD65A009DBD01 /* aquariumBg.m4a */ = {isa = PBXFileReference; lastKnownFileType = file; name = aquariumBg.m4a; path = pomodoroapp/aquariumBg.m4a; sourceTree = "<group>"; };
@@ -137,7 +135,6 @@
 				4B96AE6EE8334F46877BCFB0 /* chime.mp3 */,
 				8E934721946C47CBB87B2C29 /* alarm.mp3 */,
 				5270F53042EA1C22C24451C5 /* PrivacyInfo.xcprivacy */,
-				5D8ADABA2FAAB66E009DBD01 /* fishTank.wav */,
 			);
 			name = pomodoroapp;
 			sourceTree = "<group>";
@@ -320,7 +317,6 @@
 			buildActionMask = 2147483647;
 			files = (
 				BB2F792D24A3F905000567C9 /* Expo.plist in Resources */,
-				5D8ADABB2FAAB66F009DBD01 /* fishTank.wav in Resources */,
 				13B07FBF1A68108700A75B9A /* Images.xcassets in Resources */,
 				5D8ADAC32FAAD65A009DBD01 /* aquariumBg.m4a in Resources */,
 				3E461D99554A48A4959DE609 /* SplashScreen.storyboard in Resources */,
