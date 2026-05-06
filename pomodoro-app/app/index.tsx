@@ -212,7 +212,7 @@ export default function Index() {
             ? "🍅 Break over!"
             : "🍅 Pomodoro complete!",
           body: isBreakRef.current ? "Time to focus." : "Time for a break.",
-          sound: muted ? false : "done.mp3",
+          sound: "done.mp3",
           categoryIdentifier: "timer",
         },
         trigger: {
@@ -280,12 +280,12 @@ export default function Index() {
   // Play/pause native gapless audio with the timer
   useEffect(() => {
     if (!AudioPlayerModule) return;
-    if (isRunning) {
+    if (isRunning && !muted) {
       AudioPlayerModule.startAudio();
     } else {
       AudioPlayerModule.pauseAudio();
     }
-  }, [isRunning]);
+  }, [isRunning, muted]);
 
   // Spawns one fish. currentSeconds lets the caller pass the exact countdown
   // value it has in scope — avoids stale-ref issues across multiple sessions.
@@ -399,7 +399,7 @@ export default function Index() {
           content: {
             title: isBreak ? "🍅 Break over!" : "🍅 Pomodoro complete!",
             body: isBreak ? "Time to focus." : "Time for a break.",
-            sound: mutedRef.current ? false : "done.mp3",
+            sound: "done.mp3",
             categoryIdentifier: "timer",
           },
           trigger: {
@@ -434,7 +434,7 @@ export default function Index() {
             const alreadyAlerted =
               endedInBackground || notificationTappedRef.current;
             notificationTappedRef.current = false;
-            if (!mutedRef.current && !alreadyAlerted) {
+            if (!alreadyAlerted) {
               isBreakRef.current ? playAlarm() : playChime();
             }
             setIsRunning(false);
@@ -865,6 +865,7 @@ export default function Index() {
 
   // Plays alarm sound when work session ends
   async function playChime() {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: false });
     const { sound } = await Audio.Sound.createAsync(
       require("../assets/sounds/done.mp3"),
       { shouldPlay: true },
@@ -876,6 +877,7 @@ export default function Index() {
 
   // Plays an alarm sound when break session ends
   async function playAlarm() {
+    await Audio.setAudioModeAsync({ playsInSilentModeIOS: false });
     const { sound } = await Audio.Sound.createAsync(
       require("../assets/sounds/done.mp3"),
       { shouldPlay: true },
