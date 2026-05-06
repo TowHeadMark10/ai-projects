@@ -22,6 +22,7 @@ import {
   Modal,
   Keyboard,
   useWindowDimensions,
+  NativeModules,
 } from "react-native";
 import { useRouter, useFocusEffect } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -32,6 +33,8 @@ import {
   updateActivity,
   dismissActivity,
 } from "../modules/live-activity";
+
+const { AudioPlayerModule } = NativeModules;
 
 // Get screen height once so fish can spawn across the full aquarium
 const SCREEN_HEIGHT = Dimensions.get("window").height;
@@ -221,6 +224,7 @@ export default function Index() {
       yDrift: Animated.Value;
     }[]
   >([]);
+
   // Counter to assign unique IDs to each fish
   const fishIdRef = useRef(0);
   // Ref to the interval that spawns new fish
@@ -243,6 +247,15 @@ export default function Index() {
   useEffect(() => {
     pomodoroCountRef.current = pomodoroCount;
   }, [pomodoroCount]);
+  // Play/pause native gapless audio with the timer
+  useEffect(() => {
+    if (!AudioPlayerModule) return;
+    if (isRunning) {
+      AudioPlayerModule.startAudio();
+    } else {
+      AudioPlayerModule.pauseAudio();
+    }
+  }, [isRunning]);
 
   // Spawns one fish. currentSeconds lets the caller pass the exact countdown
   // value it has in scope — avoids stale-ref issues across multiple sessions.

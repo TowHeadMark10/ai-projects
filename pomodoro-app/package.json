@@ -12,7 +12,6 @@
   },
   "dependencies": {
     "@bacons/apple-targets": "^4.0.6",
-    "live-activity": "file:./modules/live-activity",
     "@expo/vector-icons": "^15.0.3",
     "@react-native-async-storage/async-storage": "2.2.0",
     "@react-navigation/bottom-tabs": "^7.4.0",
@@ -35,6 +34,7 @@
     "expo-symbols": "~1.0.8",
     "expo-system-ui": "~6.0.9",
     "expo-web-browser": "~15.0.10",
+    "live-activity": "file:./modules/live-activity",
     "react": "19.1.0",
     "react-dom": "19.1.0",
     "react-native": "0.81.5",

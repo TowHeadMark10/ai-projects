@@ -1,0 +1,50 @@
+import AVFoundation
+import Foundation
+
+@objc(AudioPlayerModule)
+class AudioPlayerModule: NSObject {
+  private var player: AVAudioPlayer?
+
+  @objc func startAudio() {
+    do {
+      try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default)
+      try AVAudioSession.sharedInstance().setActive(true)
+    } catch {
+      print("AudioSession error: \(error)")
+    }
+
+    if let existing = player {
+      existing.play()
+      return
+    }
+
+    guard let url = Bundle.main.url(forResource: "aquariumBg", withExtension: "m4a") else {
+      print("aquariumBg.wav not found in bundle")
+      return
+    }
+
+    do {
+      let p = try AVAudioPlayer(contentsOf: url)
+      p.numberOfLoops = -1 // infinite gapless loop — no gap between repetitions
+      p.volume = 1.0
+      p.prepareToPlay()
+      p.play()
+      player = p
+    } catch {
+      print("AVAudioPlayer error: \(error)")
+    }
+  }
+
+  @objc func pauseAudio() {
+    player?.pause()
+  }
+
+  @objc func stopAudio() {
+    player?.stop()
+    player = nil
+  }
+
+  @objc static func requiresMainQueueSetup() -> Bool {
+    false
+  }
+}
