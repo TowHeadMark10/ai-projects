@@ -94,7 +94,9 @@ struct LockScreenView: View {
                         .foregroundStyle(Color.white.opacity(0.6))
                 }
             }
-            .padding()
+            .padding(.top, 28)
+            .padding(.bottom, 16)
+            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .activityBackgroundTint(Color(red: 0.0, green: 0.467, blue: 0.714).opacity(0.9))
             .activitySystemActionForegroundColor(.white)
@@ -119,6 +121,9 @@ struct LockScreenView: View {
                         .foregroundStyle(Color.white.opacity(0.6))
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
+                    Text("Paused")
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.6))
                 } else {
                     Text(
                         timerInterval: Date() ... Date(timeIntervalSince1970: context.state.endTimestamp),
@@ -200,20 +205,23 @@ struct WidgetLiveActivity: Widget {
             DynamicIsland {
                 DynamicIslandExpandedRegion(.leading) {
                     if !isDone(context.state) {
-                        VStack(alignment: .leading, spacing: 2) {
+                        VStack(alignment: .leading, spacing: 0) {
                             Text(context.state.sessionType == "Focus" ? "Focus" : "Break")
                                 .font(.subheadline.bold())
                                 .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             if context.state.isPaused {
+                                Text("Paused")
+                                    .font(.caption)
+                                    .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                                 Text(formatSeconds(context.state.timeRemaining))
-                                    .font(.system(size: 46, weight: .bold, design: .monospaced))
+                                    .font(.system(size: 40, weight: .bold, design: .rounded))
                                     .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                                     .minimumScaleFactor(0.7)
                                     .lineLimit(1)
                             } else {
                                 Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
                                     .monospacedDigit()
-                                    .font(.system(size: 46, weight: .bold))
+                                    .font(.system(size: 46, weight: .bold, design: .rounded))
                                     .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                                     .minimumScaleFactor(0.7)
                                     .lineLimit(1)
@@ -311,8 +319,18 @@ struct WidgetLiveActivity: Widget {
                     }
                 }
             } compactLeading: {
-                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                    .font(.system(size: 26))
+                if context.state.isPaused {
+                    VStack(spacing: 1) {
+                        Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                            .font(.system(size: 18))
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 7))
+                            .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                    }
+                } else {
+                    Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                        .font(.system(size: 26))
+                }
             } compactTrailing: {
                 Group {
                     if isDone(context.state) {

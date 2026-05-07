@@ -138,7 +138,7 @@ export default function Index() {
   // Responsive timer font size: scales with screen width
   const { width: screenWidth } = useWindowDimensions();
   const timerFontSize = Math.floor(
-    screenWidth * (screenWidth > 420 ? 0.29 : 0.28),
+    screenWidth * (screenWidth > 420 ? 0.34 : 0.28),
   );
   // Mute notification
   const notificationTappedRef = useRef(false);
@@ -239,6 +239,15 @@ export default function Index() {
       }
     }
   }, [seconds]);
+
+  // Notify Live Activity when timer is paused or resumed
+  useEffect(() => {
+    if (!liveActivityActiveRef.current || Platform.OS !== "ios") return;
+    if (!isRunning && seconds > 0 && timerEndTimeRef.current) {
+      // Timer was paused — send frozen state
+      updateActivity(timerEndTimeRef.current / 1000, true, seconds);
+    }
+  }, [isRunning]);
 
   // List of active fish currently in the tank
   const [activeFish, setActiveFish] = useState<
