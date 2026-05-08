@@ -7,7 +7,8 @@ class AudioPlayerModule: NSObject {
 
   @objc func startAudio() {
     do {
-      try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options: [.mixWithOthers])
+      try AVAudioSession.sharedInstance().setCategory(.playback, mode: .default, options:
+        [.mixWithOthers])
       try AVAudioSession.sharedInstance().setActive(true)
     } catch {
       print("AudioSession error: \(error)")
@@ -36,7 +37,7 @@ class AudioPlayerModule: NSObject {
   }
 
   @objc func pauseAudio() {
-    player?.stop()
+    player?.pause()
     do {
       try AVAudioSession.sharedInstance().setCategory(.ambient)
       try AVAudioSession.sharedInstance().setActive(false, options: .notifyOthersOnDeactivation)
