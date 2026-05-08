@@ -115,7 +115,7 @@ export default function Settings() {
       <ScrollView
         contentContainerStyle={{
           alignItems: "center",
-          paddingTop: 64,
+          paddingTop: SCREEN_HEIGHT < 700 ? 32 : 64,
           paddingBottom: 48,
           paddingHorizontal: 24,
         }}
@@ -423,7 +423,7 @@ export default function Settings() {
             }}
           >
             <Text style={{ color: "#e0e0e0", fontSize: 15 }}>
-              Mute timer sounds
+              Mute aquarium music
             </Text>
             <View
               style={{

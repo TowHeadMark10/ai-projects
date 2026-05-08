@@ -20,7 +20,7 @@ private func endDate(_ state: PomodoroActivityAttributes.ContentState) -> Date {
 }
 
 private func formatSeconds(_ s: Int) -> String {
-    String(format: "%02d:%02d", s / 60, s % 60)
+    String(format: "%d:%02d", s / 60, s % 60)
 }
 
 /// Returns true when session is done — either from JS state update (timeRemaining == 0)
@@ -94,7 +94,9 @@ struct LockScreenView: View {
                         .foregroundStyle(Color.white.opacity(0.6))
                 }
             }
-            .padding()
+            .padding(.top, 28)
+            .padding(.bottom, 16)
+            .padding(.horizontal, 16)
             .frame(maxWidth: .infinity, alignment: .leading)
             .activityBackgroundTint(Color(red: 0.0, green: 0.467, blue: 0.714).opacity(0.9))
             .activitySystemActionForegroundColor(.white)
@@ -102,10 +104,7 @@ struct LockScreenView: View {
             let completedBreaks = context.state.sessionType == "Focus"
                 ? context.state.pomodoroCount
                 : max(0, context.state.pomodoroCount - 1)
-            let elapsedSecs = context.state.isPaused
-                ? max(0, context.state.totalSeconds - context.state.timeRemaining)
-                : max(0, Int(Date().timeIntervalSince1970 - (context.state.endTimestamp -
-                        Double(context.state.totalSeconds))))
+            let elapsedSecs = max(0, context.state.totalSeconds - context.state.timeRemaining)
             let elapsedMinutes = elapsedSecs / 60
 
             VStack(alignment: .leading, spacing: 4) {
@@ -119,6 +118,9 @@ struct LockScreenView: View {
                         .foregroundStyle(Color.white.opacity(0.6))
                         .minimumScaleFactor(0.6)
                         .lineLimit(1)
+                    Text("Paused")
+                        .font(.caption)
+                        .foregroundStyle(Color.white.opacity(0.6))
                 } else {
                     Text(
                         timerInterval: Date() ... Date(timeIntervalSince1970: context.state.endTimestamp),
@@ -205,15 +207,19 @@ struct WidgetLiveActivity: Widget {
                                 .font(.subheadline.bold())
                                 .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             if context.state.isPaused {
+                                Text("Paused")
+                                    .font(.caption)
+                                    .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                                 Text(formatSeconds(context.state.timeRemaining))
-                                    .font(.system(size: 46, weight: .bold, design: .monospaced))
+                                    .font(.system(size: 40, weight: .bold, design: .rounded))
                                     .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                                     .minimumScaleFactor(0.7)
                                     .lineLimit(1)
+
                             } else {
                                 Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
                                     .monospacedDigit()
-                                    .font(.system(size: 46, weight: .bold))
+                                    .font(.system(size: 46, weight: .bold, design: .rounded))
                                     .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                                     .minimumScaleFactor(0.7)
                                     .lineLimit(1)
@@ -223,19 +229,7 @@ struct WidgetLiveActivity: Widget {
                         .padding(.top, 6)
                     }
                 }
-                DynamicIslandExpandedRegion(.trailing) {
-                    if !isDone(context.state) {
-                        let elapsedSecs = context.state.isPaused
-                            ? max(0, context.state.totalSeconds - context.state.timeRemaining)
-                            : max(0, Int(Date().timeIntervalSince1970 - (context.state.endTimestamp -
-                                    Double(context.state.totalSeconds))))
-                        Text("\(elapsedSecs / 60)m")
-                            .font(.system(size: 28, weight: .bold, design: .rounded))
-                            .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
-                            .frame(maxHeight: .infinity, alignment: .center)
-                            .padding(.trailing, 14)
-                    }
-                }
+
                 DynamicIslandExpandedRegion(.center) {
                     if isDone(context.state) {
                         VStack(spacing: 4) {
@@ -257,11 +251,8 @@ struct WidgetLiveActivity: Widget {
                         let completedBreaks = context.state.sessionType == "Focus"
                             ? context.state.pomodoroCount
                             : max(0, context.state.pomodoroCount - 1)
-                        let elapsedSecs = context.state.isPaused
-                            ? max(0, context.state.totalSeconds - context.state.timeRemaining)
-                            : max(0, Int(Date().timeIntervalSince1970 - (context.state.endTimestamp -
-                                    Double(context.state.totalSeconds))))
-                        VStack(spacing: 6) {
+                        let elapsedSecs = max(0, context.state.totalSeconds - context.state.timeRemaining)
+                        VStack(spacing: 4) {
                             if context.state.isPaused {
                                 let fraction = 1.0 - (Double(context.state.timeRemaining) /
                                     Double(context.state.totalSeconds))
@@ -272,7 +263,6 @@ struct WidgetLiveActivity: Widget {
                                         .tint(Color(red: 0.15, green: 0.75, blue: 1.0))
                                 }
                                 .scaleEffect(y: 2, anchor: .center)
-                                .padding(.horizontal, 14)
                             } else {
                                 let start = Date(timeIntervalSince1970: context.state.endTimestamp -
                                     Double(context.state.totalSeconds))
@@ -305,38 +295,52 @@ struct WidgetLiveActivity: Widget {
                                     .font(.callout.bold())
                                     .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
                             }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.horizontal, 14)
                         }
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .padding(.horizontal, 14)
                     }
                 }
             } compactLeading: {
-                Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
-                    .font(.system(size: 26))
-            } compactTrailing: {
-                Group {
-                    if isDone(context.state) {
-                        Text("✅").font(.system(size: 16))
-                    } else if context.state.isPaused {
-                        let mins = context.state.timeRemaining / 60
-                        let secs = context.state.timeRemaining % 60
-                        // Larger font — DI expands horizontally to fit
-                        Text(String(format: "%d:%02d", mins, secs))
-                            .monospacedDigit()
-                            .font(.system(size: 16, weight: .bold))
+                if context.state.isPaused && !isDone(context.state) {
+                    VStack(spacing: 1) {
+                        Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                            .font(.system(size: 18))
+                        Image(systemName: "pause.fill")
+                            .font(.system(size: 7))
                             .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
-                            .multilineTextAlignment(.center)
-                            .frame(width: 58)
-                    } else {
-                        Text(timerInterval: Date() ... endDate(context.state), countsDown: true)
-                            .monospacedDigit()
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
-                            .multilineTextAlignment(.center)
-                            .frame(width: 58)
                     }
+                } else {
+                    Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
+                        .font(.system(size: 26))
                 }
-                .animation(.none, value: context.state.isPaused)
+            } compactTrailing: {
+                let endDate = Date(timeIntervalSince1970: context.state.endTimestamp)
+                TimelineView(.periodic(from: Date(), by: 1.0)) { tl in
+                    Group {
+                        if context.state.timeRemaining == 0
+                            || (!context.state.isPaused && tl.date >= endDate)
+                        {
+                            Text("✅").font(.system(size: 16))
+                        } else if context.state.isPaused {
+                            let mins = context.state.timeRemaining / 60
+                            let secs = context.state.timeRemaining % 60
+                            Text(String(format: "%d:%02d", mins, secs))
+                                .monospacedDigit()
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                .multilineTextAlignment(.center)
+                                .frame(width: 58)
+                        } else {
+                            Text(timerInterval: Date() ... endDate, countsDown: true)
+                                .monospacedDigit()
+                                .font(.system(size: 16, weight: .bold))
+                                .foregroundStyle(Color(red: 0.15, green: 0.75, blue: 1.0))
+                                .multilineTextAlignment(.center)
+                                .frame(width: 58)
+                        }
+                    }
+                    .animation(.none, value: context.state.isPaused)
+                }
             } minimal: {
                 Text(context.state.sessionType == "Focus" ? "🍅" : "☕")
                     .font(.system(size: 20))
