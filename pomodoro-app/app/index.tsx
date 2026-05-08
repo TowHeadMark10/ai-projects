@@ -208,9 +208,9 @@ export default function Index() {
       const id = await Notifications.scheduleNotificationAsync({
         content: {
           title: isBreakRef.current
-            ? "🍅 Break over!"
-            : "🍅 Pomodoro complete!",
-          body: isBreakRef.current ? "Time to focus." : "Time for a break.",
+            ? "☕ Refreshed?"
+            : "🍅 Focus session done!",
+          body: isBreakRef.current ? "Let's get back to it." : "Step away. Your brain needs it.",
           sound: "done.mp3",
           categoryIdentifier: "timer",
         },
@@ -411,8 +411,8 @@ export default function Index() {
         notificationIdRef.current = null;
         const id = await Notifications.scheduleNotificationAsync({
           content: {
-            title: isBreak ? "🍅 Break over!" : "🍅 Pomodoro complete!",
-            body: isBreak ? "Time to focus." : "Time for a break.",
+            title: isBreak ? "☕ Refreshed?" : "🍅 Focus session done!",
+            body: isBreak ? "Let's get back to it." : "Step away. Your brain needs it.",
             sound: "done.mp3",
             categoryIdentifier: "timer",
           },
