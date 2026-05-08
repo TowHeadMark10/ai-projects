@@ -18,6 +18,7 @@ class LiveActivityModule: NSObject {
   private var currentSessionType: String = "Focus"
   private var currentTotalSeconds: Int = 1500
   private var currentPomodoroCount: Int = 0
+  private var endWorkItem: DispatchWorkItem?
 
   @objc func startActivity(
     _ sessionType: String,
@@ -50,6 +51,8 @@ class LiveActivityModule: NSObject {
         attributes: PomodoroActivityAttributes(),
         content: ActivityContent(state: state, staleDate: Date(timeIntervalSince1970: adjustedEnd))
       )
+      scheduleEndTimer(endTimestamp: adjustedEnd, sessionType: sessionType,
+                       totalSeconds: Int(totalSeconds), pomodoroCount: Int(pomodoroCount))
     } catch {
       print("LiveActivity request failed: \(error.localizedDescription)")
     }
@@ -71,6 +74,16 @@ class LiveActivityModule: NSObject {
     )
 
     guard let target = activity else { return }
+
+    if Int(timeRemaining) > 0 {
+      endWorkItem?.cancel()
+      endWorkItem = nil
+      if !isPaused {
+        scheduleEndTimer(endTimestamp: adjustedEnd, sessionType: currentSessionType,
+                         totalSeconds: currentTotalSeconds, pomodoroCount: currentPomodoroCount)
+      }
+    }
+
     guard Int(timeRemaining) != 0 else { return }
 
     let staleDate: Date? = !isPaused ? Date(timeIntervalSince1970: adjustedEnd) : nil
@@ -86,9 +99,54 @@ class LiveActivityModule: NSObject {
   }
 
   @objc func dismissActivity() {
+    endWorkItem?.cancel()
+    endWorkItem = nil
     let current = activity
     activity = nil
     Task { await current?.end(nil, dismissalPolicy: .immediate) }
+  }
+
+  private func scheduleEndTimer(endTimestamp: Double, sessionType: String,
+                                totalSeconds: Int, pomodoroCount: Int)
+  {
+    let interval = endTimestamp - Date().timeIntervalSince1970
+    guard interval > 0 else { return }
+    endWorkItem?.cancel()
+    guard let target = activity else { return }
+
+    let alert = AlertConfiguration(
+      title: LocalizedStringResource(stringLiteral: sessionType == "Focus"
+        ? "🍅 Focus session done!" : "☕ Refreshed?"),
+      body: LocalizedStringResource(stringLiteral: sessionType == "Focus"
+        ? "Step away. Your brain needs it." : "Let's get back to it."),
+      sound: .default
+    )
+    let doneState = PomodoroActivityAttributes.ContentState(
+      endTimestamp: endTimestamp,
+      isPaused: false,
+      timeRemaining: 0,
+      sessionType: sessionType,
+      totalSeconds: totalSeconds,
+      pomodoroCount: pomodoroCount
+    )
+    let item = DispatchWorkItem {
+      ProcessInfo.processInfo.performExpiringActivity(withReason: "DoneStateUpdate") { expired in
+        guard !expired else { return }
+        let semaphore = DispatchSemaphore(value: 0)
+        Task(priority: .userInitiated) {
+          await target.update(
+            ActivityContent(state: doneState, staleDate: nil),
+            alertConfiguration: alert
+          )
+          semaphore.signal()
+        }
+        semaphore.wait()
+      }
+    }
+    endWorkItem = item
+    DispatchQueue.global(qos: .userInitiated).asyncAfter(
+      deadline: .now() + interval, execute: item
+    )
   }
 
   @objc static func requiresMainQueueSetup() -> Bool {
