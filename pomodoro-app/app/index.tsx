@@ -124,7 +124,6 @@ export default function Index() {
   const crabX = useRef(new Animated.Value(0)).current;
   const crabScale = useRef(new Animated.Value(-1)).current;
   //Timer ends in live activity widget
-  const timerJustEndedRef = useRef(false);
   //Ends live activity
   const activityIsDoneRef = useRef(false);
   // Tracks whether we've already sent the switch to live countdown (< 10 min) this session.
@@ -243,7 +242,12 @@ export default function Index() {
   // Notify Live Activity when timer is paused or resumed
   useEffect(() => {
     if (!liveActivityActiveRef.current || Platform.OS !== "ios") return;
-    if (!isRunning && seconds > 0 && timerEndTimeRef.current) {
+    if (
+      !isRunning &&
+      seconds > 0 &&
+      timerEndTimeRef.current &&
+      !activityIsDoneRef.current
+    ) {
       // Timer was paused — send frozen state
       updateActivity(timerEndTimeRef.current / 1000, true, seconds);
     }
@@ -396,6 +400,7 @@ export default function Index() {
             pomodoroCountRef.current,
           );
           liveActivityActiveRef.current = true;
+          activityIsDoneRef.current = false;
           switchedToLiveCountdownRef.current = false;
         }
       }
@@ -426,9 +431,7 @@ export default function Index() {
         setSeconds((s) => {
           if (s <= 1) {
             clearInterval(IntervalRef.current!);
-            // Flag for the pause effect below — it will send the "done" state (timeRemaining=0)
             if (Platform.OS === "ios" && liveActivityActiveRef.current) {
-              timerJustEndedRef.current = true;
               activityIsDoneRef.current = true;
             }
             // Cancel ALL notifications — using cancelAll (not just by ID) eliminates
@@ -480,10 +483,7 @@ export default function Index() {
       clearInterval(IntervalRef.current!);
       // Pause the Live Activity — show static time and "Paused" label
       if (Platform.OS === "ios" && liveActivityActiveRef.current) {
-        if (timerJustEndedRef.current) {
-          timerJustEndedRef.current = false;
-          updateActivity(Date.now() / 1000, true, 0); // send "done" state
-        } else {
+        if (!activityIsDoneRef.current) {
           updateActivity(
             Date.now() / 1000 + secondsRef.current,
             true,
@@ -619,6 +619,9 @@ export default function Index() {
             clearInterval(fishSpawnIntervalRef.current!);
             restartFishSpawnRef.current?.();
           } else {
+            if (Platform.OS === "ios" && liveActivityActiveRef.current) {
+              activityIsDoneRef.current = true;
+            }
             setIsRunning(false);
             setHasStarted(false); // reset so button shows "Start break"/"Start" instead of "Resume"
             // Exit aquarium mode if active — timer ended while app was in background
@@ -748,7 +751,7 @@ export default function Index() {
   function formatTime(s: number) {
     const m = Math.floor(s / 60);
     const sec = s % 60;
-    return `${String(m).padStart(2, "0")}:${String(sec).padStart(2, "0")}`;
+    return `${m}:${String(sec).padStart(2, "0")}`;
   }
 
   // Reset goes back to work mode
@@ -761,7 +764,6 @@ export default function Index() {
     }
     // Clear done-state flags so a previous session doesn't pollute the next one
     activityIsDoneRef.current = false;
-    timerJustEndedRef.current = false;
     setIsRunning(false);
     setisBreak(false);
     setSeconds(workTime);

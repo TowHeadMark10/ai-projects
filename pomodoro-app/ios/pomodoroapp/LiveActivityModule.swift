@@ -30,8 +30,6 @@ class LiveActivityModule: NSObject {
     currentTotalSeconds = Int(totalSeconds)
     currentPomodoroCount = Int(pomodoroCount)
 
-    // Subtract 1s from endTimestamp when session is exactly 60min so
-    // Text(timerInterval:) stays in M:SS format instead of switching to H:MM:SS
     let adjustedEnd = Int(totalSeconds) >= 3600 ? endTimestamp - 1.0 : endTimestamp
     let state = PomodoroActivityAttributes.ContentState(
       endTimestamp: adjustedEnd,
@@ -42,17 +40,11 @@ class LiveActivityModule: NSObject {
       pomodoroCount: currentPomodoroCount
     )
 
-    // Only reuse the activity we explicitly own — never pick up orphaned activities
-    // from previous sessions via activities.first (they cause stale-state flashes)
     if let existing = activity {
-      Task(priority: .userInteractive) {
-        await existing.update(ActivityContent(state: state, staleDate: Date(timeIntervalSince1970:
-          adjustedEnd)))
-      }
-      return
+      Task { await existing.end(nil, dismissalPolicy: .immediate) }
+      activity = nil
     }
 
-    // No owned activity — create a fresh one
     do {
       activity = try Activity.request(
         attributes: PomodoroActivityAttributes(),
@@ -68,8 +60,6 @@ class LiveActivityModule: NSObject {
     isPaused: Bool,
     timeRemaining: Double
   ) {
-    // Apply same -1s adjustment as startActivity for 60min sessions
-    // so JS updates don't undo the endTimestamp correction
     let adjustedEnd = currentTotalSeconds >= 3600 ? endTimestamp - 1.0 : endTimestamp
     let state = PomodoroActivityAttributes.ContentState(
       endTimestamp: adjustedEnd,
@@ -80,22 +70,19 @@ class LiveActivityModule: NSObject {
       pomodoroCount: currentPomodoroCount
     )
 
-    // Use only our owned activity — avoids accidentally updating an orphaned one
     guard let target = activity else { return }
+    guard Int(timeRemaining) != 0 else { return }
 
-    // Only send alert configuration when the timer is done (timeRemaining == 0)
-    // to expand the DI and notify the user
-    let alert: AlertConfiguration? = Int(timeRemaining) == 0 ? AlertConfiguration(
-      title: LocalizedStringResource(stringLiteral: currentSessionType == "Focus"
-        ? "Pomodoro complete! 🍅" : "Break's over! ☕"),
-      body: LocalizedStringResource(stringLiteral: currentSessionType == "Focus"
-        ? "Time to take a break." : "Time to get back to work."),
-      sound: .default
-    ) : nil
-    Task(priority: .userInitiated) { await target.update(
-      ActivityContent(state: state, staleDate: nil),
-      alertConfiguration: alert
-    ) }
+    let staleDate: Date? = !isPaused ? Date(timeIntervalSince1970: adjustedEnd) : nil
+    ProcessInfo.processInfo.performExpiringActivity(withReason: "UpdateLiveActivity") { expired in
+      guard !expired else { return }
+      let semaphore = DispatchSemaphore(value: 0)
+      Task {
+        await target.update(ActivityContent(state: state, staleDate: staleDate))
+        semaphore.signal()
+      }
+      semaphore.wait()
+    }
   }
 
   @objc func dismissActivity() {
