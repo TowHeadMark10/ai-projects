@@ -203,7 +203,7 @@ class LiveActivityModule: NSObject {
       "endTimestamp": endTimestamp,
       "timeRemaining": timeRemaining,
       "isDone": isDone,
-      "sandbox": true,
+      "sandbox": false,
     ]
     req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
     networkSession.dataTask(with: req) { [weak self] data, response, _ in guard let self else { return }
