@@ -21,9 +21,16 @@ class LiveActivityModule: NSObject {
   private var endWorkItem: DispatchWorkItem?
   private var currentPushToken: String?
   private var minuteWorkItems: [DispatchWorkItem] = []
+  private var safetyWorkItem: DispatchWorkItem?
   private var lastPauseState: Bool = false
 
   private let workerURL = "https://pomodoro-apns.marcogilbertorm.workers.dev/"
+  private let networkSession: URLSession = {
+    let config = URLSessionConfiguration.ephemeral
+    config.timeoutIntervalForRequest = 3.0
+    config.timeoutIntervalForResource = 5.0
+    return URLSession(configuration: config)
+  }()
 
   @objc func startActivity(
     _ sessionType: String,
@@ -123,6 +130,8 @@ class LiveActivityModule: NSObject {
   }
 
   @objc func dismissActivity() {
+    safetyWorkItem?.cancel()
+    safetyWorkItem = nil
     endWorkItem?.cancel()
     endWorkItem = nil
     cancelMinuteUpdates()
@@ -147,8 +156,11 @@ class LiveActivityModule: NSObject {
       if let token = self.currentPushToken {
         self.sendWorkerPush(token: token, sessionType: sessionType,
                             totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
-                            endTimestamp: endTimestamp, timeRemaining: 0, isDone: true)
+                            endTimestamp: endTimestamp, timeRemaining: 0, isDone: true,
+                            activityRef: target)
       } else {
+        self.safetyWorkItem?.cancel()
+        self.safetyWorkItem = nil
         self.fallbackUpdate(target: target, sessionType: sessionType,
                             totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
                             endTimestamp: endTimestamp)
@@ -158,14 +170,29 @@ class LiveActivityModule: NSObject {
     DispatchQueue.global(qos: .userInitiated).asyncAfter(
       deadline: .now() + interval, execute: item
     )
+    safetyWorkItem?.cancel()
+    let safetyItem = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      self.fallbackUpdate(target: target, sessionType: sessionType,
+                          totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
+                          endTimestamp: endTimestamp)
+    }
+    safetyWorkItem = safetyItem
+    let safetyDelay = endTimestamp - Date().timeIntervalSince1970 + 1.0
+    if safetyDelay > 0 {
+      DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + safetyDelay, execute:
+        safetyItem)
+    }
   }
 
   private func sendWorkerPush(token: String, sessionType: String,
                               totalSeconds: Int, pomodoroCount: Int,
-                              endTimestamp: Double, timeRemaining: Int, isDone: Bool)
+                              endTimestamp: Double, timeRemaining: Int, isDone: Bool,
+                              activityRef _: Activity<PomodoroActivityAttributes>? = nil)
+
   {
     guard let url = URL(string: workerURL) else { return }
-    var req = URLRequest(url: url)
+    var req = URLRequest(url: url, timeoutInterval: 2.0)
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
     let payload: [String: Any] = [
@@ -179,16 +206,15 @@ class LiveActivityModule: NSObject {
       "sandbox": true,
     ]
     req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
-    URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
-      guard let self else { return }
+    networkSession.dataTask(with: req) { [weak self] data, response, _ in guard let self else { return }
       let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
       let responseBody = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
       print("Worker response (\(isDone ? "done" : "update")) — status: \(statusCode), body: \(responseBody)")
-      if isDone, error != nil || statusCode != 200, let target = self.activity {
-        self.fallbackUpdate(target: target, sessionType: sessionType,
-                            totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
-                            endTimestamp: endTimestamp)
+      if isDone, statusCode == 200 {
+        self.safetyWorkItem?.cancel()
+        self.safetyWorkItem = nil
       }
+
     }.resume()
   }
 
@@ -224,13 +250,6 @@ class LiveActivityModule: NSObject {
                               sessionType: String, totalSeconds: Int,
                               pomodoroCount: Int, endTimestamp: Double)
   {
-    let alert = AlertConfiguration(
-      title: LocalizedStringResource(stringLiteral: sessionType == "Focus"
-        ? "🍅 Focus session done!" : "☕ Refreshed?"),
-      body: LocalizedStringResource(stringLiteral: sessionType == "Focus"
-        ? "Step away. Your brain needs it." : "Let's get back to it."),
-      sound: .default
-    )
     let doneState = PomodoroActivityAttributes.ContentState(
       endTimestamp: endTimestamp,
       isPaused: false,
@@ -239,17 +258,11 @@ class LiveActivityModule: NSObject {
       totalSeconds: totalSeconds,
       pomodoroCount: pomodoroCount
     )
-    ProcessInfo.processInfo.performExpiringActivity(withReason: "DoneStateUpdate") { expired in
-      guard !expired else { return }
-      let semaphore = DispatchSemaphore(value: 0)
-      Task(priority: .userInitiated) {
-        await target.update(
-          ActivityContent(state: doneState, staleDate: nil),
-          alertConfiguration: alert
-        )
-        semaphore.signal()
-      }
-      semaphore.wait()
+    Task(priority: .high) {
+      await target.end(
+        ActivityContent(state: doneState, staleDate: nil),
+        dismissalPolicy: .after(.now + 3600)
+      )
     }
   }
 
