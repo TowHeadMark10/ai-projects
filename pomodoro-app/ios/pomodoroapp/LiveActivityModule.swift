@@ -195,6 +195,11 @@ class LiveActivityModule: NSObject {
     var req = URLRequest(url: url, timeoutInterval: 2.0)
     req.httpMethod = "POST"
     req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    #if DEBUG
+      let isSandbox = true
+    #else
+      let isSandbox = false
+    #endif
     let payload: [String: Any] = [
       "token": token,
       "sessionType": sessionType,
@@ -203,7 +208,7 @@ class LiveActivityModule: NSObject {
       "endTimestamp": endTimestamp,
       "timeRemaining": timeRemaining,
       "isDone": isDone,
-      "sandbox": false,
+      "sandbox": isSandbox,
     ]
     req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
     networkSession.dataTask(with: req) { [weak self] data, response, _ in guard let self else { return }
