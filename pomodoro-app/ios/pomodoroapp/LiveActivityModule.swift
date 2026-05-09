@@ -19,6 +19,11 @@ class LiveActivityModule: NSObject {
   private var currentTotalSeconds: Int = 1500
   private var currentPomodoroCount: Int = 0
   private var endWorkItem: DispatchWorkItem?
+  private var currentPushToken: String?
+  private var minuteWorkItems: [DispatchWorkItem] = []
+  private var lastPauseState: Bool = false
+
+  private let workerURL = "https://pomodoro-apns.marcogilbertorm.workers.dev/"
 
   @objc func startActivity(
     _ sessionType: String,
@@ -30,6 +35,7 @@ class LiveActivityModule: NSObject {
     currentSessionType = sessionType
     currentTotalSeconds = Int(totalSeconds)
     currentPomodoroCount = Int(pomodoroCount)
+    currentPushToken = nil
 
     let adjustedEnd = Int(totalSeconds) >= 3600 ? endTimestamp - 1.0 : endTimestamp
     let state = PomodoroActivityAttributes.ContentState(
@@ -47,12 +53,23 @@ class LiveActivityModule: NSObject {
     }
 
     do {
-      activity = try Activity.request(
+      let newActivity = try Activity.request(
         attributes: PomodoroActivityAttributes(),
-        content: ActivityContent(state: state, staleDate: Date(timeIntervalSince1970: adjustedEnd))
+        content: ActivityContent(state: state, staleDate: Date(timeIntervalSince1970: adjustedEnd)),
+        pushType: .token
       )
+      activity = newActivity
+      Task {
+        for await tokenData in newActivity.pushTokenUpdates {
+          let token = tokenData.map { String(format: "%02x", $0) }.joined()
+          self.currentPushToken = token
+          print("APNs push token received: \(token.prefix(20))...")
+        }
+      }
       scheduleEndTimer(endTimestamp: adjustedEnd, sessionType: sessionType,
                        totalSeconds: Int(totalSeconds), pomodoroCount: Int(pomodoroCount))
+      scheduleMinuteUpdates(endTimestamp: adjustedEnd, sessionType: sessionType,
+                            totalSeconds: Int(totalSeconds), pomodoroCount: Int(pomodoroCount))
     } catch {
       print("LiveActivity request failed: \(error.localizedDescription)")
     }
@@ -81,7 +98,14 @@ class LiveActivityModule: NSObject {
       if !isPaused {
         scheduleEndTimer(endTimestamp: adjustedEnd, sessionType: currentSessionType,
                          totalSeconds: currentTotalSeconds, pomodoroCount: currentPomodoroCount)
+        if lastPauseState {
+          scheduleMinuteUpdates(endTimestamp: adjustedEnd, sessionType: currentSessionType,
+                                totalSeconds: currentTotalSeconds, pomodoroCount: currentPomodoroCount)
+        }
+      } else if !lastPauseState {
+        cancelMinuteUpdates()
       }
+      lastPauseState = isPaused
     }
 
     guard Int(timeRemaining) != 0 else { return }
@@ -101,6 +125,8 @@ class LiveActivityModule: NSObject {
   @objc func dismissActivity() {
     endWorkItem?.cancel()
     endWorkItem = nil
+    cancelMinuteUpdates()
+    currentPushToken = nil
     let current = activity
     activity = nil
     Task { await current?.end(nil, dismissalPolicy: .immediate) }
@@ -109,11 +135,95 @@ class LiveActivityModule: NSObject {
   private func scheduleEndTimer(endTimestamp: Double, sessionType: String,
                                 totalSeconds: Int, pomodoroCount: Int)
   {
-    let interval = endTimestamp - Date().timeIntervalSince1970
+    let interval = endTimestamp - Date().timeIntervalSince1970 - 2.0
     guard interval > 0 else { return }
+    if endWorkItem != nil, interval < 10 { return }
     endWorkItem?.cancel()
     guard let target = activity else { return }
 
+    let item = DispatchWorkItem { [weak self] in
+      guard let self else { return }
+      print("GCD timer fired — token: \(self.currentPushToken != nil ? "YES" : "NIL")")
+      if let token = self.currentPushToken {
+        self.sendWorkerPush(token: token, sessionType: sessionType,
+                            totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
+                            endTimestamp: endTimestamp, timeRemaining: 0, isDone: true)
+      } else {
+        self.fallbackUpdate(target: target, sessionType: sessionType,
+                            totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
+                            endTimestamp: endTimestamp)
+      }
+    }
+    endWorkItem = item
+    DispatchQueue.global(qos: .userInitiated).asyncAfter(
+      deadline: .now() + interval, execute: item
+    )
+  }
+
+  private func sendWorkerPush(token: String, sessionType: String,
+                              totalSeconds: Int, pomodoroCount: Int,
+                              endTimestamp: Double, timeRemaining: Int, isDone: Bool)
+  {
+    guard let url = URL(string: workerURL) else { return }
+    var req = URLRequest(url: url)
+    req.httpMethod = "POST"
+    req.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    let payload: [String: Any] = [
+      "token": token,
+      "sessionType": sessionType,
+      "totalSeconds": totalSeconds,
+      "pomodoroCount": pomodoroCount,
+      "endTimestamp": endTimestamp,
+      "timeRemaining": timeRemaining,
+      "isDone": isDone,
+      "sandbox": true,
+    ]
+    req.httpBody = try? JSONSerialization.data(withJSONObject: payload)
+    URLSession.shared.dataTask(with: req) { [weak self] data, response, error in
+      guard let self else { return }
+      let statusCode = (response as? HTTPURLResponse)?.statusCode ?? 0
+      let responseBody = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
+      print("Worker response (\(isDone ? "done" : "update")) — status: \(statusCode), body: \(responseBody)")
+      if isDone, error != nil || statusCode != 200, let target = self.activity {
+        self.fallbackUpdate(target: target, sessionType: sessionType,
+                            totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
+                            endTimestamp: endTimestamp)
+      }
+    }.resume()
+  }
+
+  private func scheduleMinuteUpdates(endTimestamp: Double, sessionType: String,
+                                     totalSeconds: Int, pomodoroCount: Int)
+  {
+    cancelMinuteUpdates()
+    let now = Date().timeIntervalSince1970
+    let maxMinutes = totalSeconds / 60
+    guard maxMinutes > 0 else { return }
+    for m in 1 ... maxMinutes {
+      let fireAt = endTimestamp - Double(m * 60)
+      let delay = fireAt - now
+      guard delay > 1 else { continue }
+      let remaining = m * 60
+      let item = DispatchWorkItem { [weak self] in
+        guard let self, let token = self.currentPushToken else { return }
+        self.sendWorkerPush(token: token, sessionType: sessionType,
+                            totalSeconds: totalSeconds, pomodoroCount: pomodoroCount,
+                            endTimestamp: endTimestamp, timeRemaining: remaining, isDone: false)
+      }
+      minuteWorkItems.append(item)
+      DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + delay, execute: item)
+    }
+  }
+
+  private func cancelMinuteUpdates() {
+    minuteWorkItems.forEach { $0.cancel() }
+    minuteWorkItems.removeAll()
+  }
+
+  private func fallbackUpdate(target: Activity<PomodoroActivityAttributes>,
+                              sessionType: String, totalSeconds: Int,
+                              pomodoroCount: Int, endTimestamp: Double)
+  {
     let alert = AlertConfiguration(
       title: LocalizedStringResource(stringLiteral: sessionType == "Focus"
         ? "🍅 Focus session done!" : "☕ Refreshed?"),
@@ -129,24 +239,18 @@ class LiveActivityModule: NSObject {
       totalSeconds: totalSeconds,
       pomodoroCount: pomodoroCount
     )
-    let item = DispatchWorkItem {
-      ProcessInfo.processInfo.performExpiringActivity(withReason: "DoneStateUpdate") { expired in
-        guard !expired else { return }
-        let semaphore = DispatchSemaphore(value: 0)
-        Task(priority: .userInitiated) {
-          await target.update(
-            ActivityContent(state: doneState, staleDate: nil),
-            alertConfiguration: alert
-          )
-          semaphore.signal()
-        }
-        semaphore.wait()
+    ProcessInfo.processInfo.performExpiringActivity(withReason: "DoneStateUpdate") { expired in
+      guard !expired else { return }
+      let semaphore = DispatchSemaphore(value: 0)
+      Task(priority: .userInitiated) {
+        await target.update(
+          ActivityContent(state: doneState, staleDate: nil),
+          alertConfiguration: alert
+        )
+        semaphore.signal()
       }
+      semaphore.wait()
     }
-    endWorkItem = item
-    DispatchQueue.global(qos: .userInitiated).asyncAfter(
-      deadline: .now() + interval, execute: item
-    )
   }
 
   @objc static func requiresMainQueueSetup() -> Bool {

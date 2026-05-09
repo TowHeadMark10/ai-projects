@@ -104,7 +104,10 @@ struct LockScreenView: View {
             let completedBreaks = context.state.sessionType == "Focus"
                 ? context.state.pomodoroCount
                 : max(0, context.state.pomodoroCount - 1)
-            let elapsedSecs = max(0, context.state.totalSeconds - context.state.timeRemaining)
+            let fromState = max(0, context.state.totalSeconds - context.state.timeRemaining)
+            let fromClock = max(0, context.state.totalSeconds - max(0, Int(context.state.endTimestamp -
+                    Date().timeIntervalSince1970)))
+            let elapsedSecs = max(fromState, fromClock)
             let elapsedMinutes = elapsedSecs / 60
 
             VStack(alignment: .leading, spacing: 4) {
@@ -251,7 +254,10 @@ struct WidgetLiveActivity: Widget {
                         let completedBreaks = context.state.sessionType == "Focus"
                             ? context.state.pomodoroCount
                             : max(0, context.state.pomodoroCount - 1)
-                        let elapsedSecs = max(0, context.state.totalSeconds - context.state.timeRemaining)
+                        let fromState = max(0, context.state.totalSeconds - context.state.timeRemaining)
+                        let fromClock = max(0, context.state.totalSeconds - max(0, Int(context.state.endTimestamp -
+                                Date().timeIntervalSince1970)))
+                        let elapsedSecs = max(fromState, fromClock)
                         VStack(spacing: 4) {
                             if context.state.isPaused {
                                 let fraction = 1.0 - (Double(context.state.timeRemaining) /
