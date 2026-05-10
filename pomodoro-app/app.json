@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "pomodoro-app",
+    "name": "Fishmo",
     "slug": "pomodoro-app",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.towheadmark10.pomodoroapp",
       "appleTeamId": "2JGAYT8A22",
-      "buildNumber": "2",
+      "buildNumber": "3",
       "deploymentTarget": "16.2",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],

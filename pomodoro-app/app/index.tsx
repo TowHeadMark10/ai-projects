@@ -210,7 +210,9 @@ export default function Index() {
           title: isBreakRef.current
             ? "☕ Refreshed?"
             : "🍅 Focus session done!",
-          body: isBreakRef.current ? "Let's get back to it." : "Step away. Your brain needs it.",
+          body: isBreakRef.current
+            ? "Let's get back to it."
+            : "Step away. Your brain needs it.",
           sound: "done.mp3",
           categoryIdentifier: "timer",
         },
@@ -412,7 +414,9 @@ export default function Index() {
         const id = await Notifications.scheduleNotificationAsync({
           content: {
             title: isBreak ? "☕ Refreshed?" : "🍅 Focus session done!",
-            body: isBreak ? "Let's get back to it." : "Step away. Your brain needs it.",
+            body: isBreak
+              ? "Let's get back to it."
+              : "Step away. Your brain needs it.",
             sound: "done.mp3",
             categoryIdentifier: "timer",
           },
@@ -508,9 +512,9 @@ export default function Index() {
         if (savedMuted) setMuted(savedMuted === "true");
         if (savedWork) {
           const ms = Number(savedWork) * 60;
+          const workChanged = ms !== workTime;
           setWorkTime(ms);
-          // Only reset the timer if it's not currently running
-          if (!isRunningRef.current) setSeconds(ms);
+          if (!isRunningRef.current && workChanged) setSeconds(ms);
         }
         if (savedBreak) {
           setBreakTime(Number(savedBreak) * 60);
