@@ -12,7 +12,7 @@
       "supportsTablet": true,
       "bundleIdentifier": "com.towheadmark10.pomodoroapp",
       "appleTeamId": "2JGAYT8A22",
-      "buildNumber": "3",
+      "buildNumber": "11",
       "deploymentTarget": "16.2",
       "infoPlist": {
         "UIBackgroundModes": ["audio"],
