@@ -91,6 +91,8 @@ class LiveActivityModule: NSObject {
     timeRemaining: Double
   ) {
     let adjustedEnd = currentTotalSeconds >= 3600 ? endTimestamp - 1.0 : endTimestamp
+    // Don't overwrite a done state with a paused/running state
+    if adjustedEnd <= Date().timeIntervalSince1970 { return }
     let state = PomodoroActivityAttributes.ContentState(
       endTimestamp: adjustedEnd,
       isPaused: isPaused,
