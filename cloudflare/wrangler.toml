@@ -1,0 +1,18 @@
+name = "pomodoro-apns"
+main = "worker.js"
+compatibility_date = "2024-11-01"
+
+[[durable_objects.bindings]]
+name = "TIMER_SCHEDULER"
+class_name = "TimerScheduler"
+
+[[migrations]]
+tag = "v1"
+new_classes = ["TimerScheduler"]
+
+[vars]
+APNS_BUNDLE_ID = "com.towheadmark10.pomodoroapp"
+
+[[kv_namespaces]]
+binding = "JWT_CACHE"
+id = "8b94ae113cea4fb7828ae90123cabd38"
