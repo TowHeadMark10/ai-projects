@@ -512,7 +512,7 @@ export default function Index() {
         if (savedMuted) setMuted(savedMuted === "true");
         if (savedWork) {
           const ms = Number(savedWork) * 60;
-          const workChanged = ms !== workTime;
+          const workChanged = ms !== workTimeRef.current;
           setWorkTime(ms);
           if (!isRunningRef.current && workChanged) setSeconds(ms);
         }

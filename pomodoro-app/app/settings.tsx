@@ -453,6 +453,8 @@ export default function Settings() {
           onPress={() => {
             setWorkMinutes(DEFAULT_WORK);
             setBreakMinutes(DEFAULT_BREAK);
+            AsyncStorage.setItem("workMinutes", String(DEFAULT_WORK));
+            AsyncStorage.setItem("breakMinutes", String(DEFAULT_BREAK));
             setFocusMode(false);
             setMuted(false);
           }}
