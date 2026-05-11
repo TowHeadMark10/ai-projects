@@ -117,6 +117,8 @@ class LiveActivityModule: NSObject {
       } else if !lastPauseState {
         cancelMinuteUpdates()
         cancelScheduler()
+        safetyWorkItem?.cancel()
+        safetyWorkItem = nil
       }
       lastPauseState = isPaused
     }
