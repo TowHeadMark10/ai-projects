@@ -33,6 +33,7 @@ import {
   updateActivity,
   dismissActivity,
 } from "../modules/live-activity";
+import OnboardingModal, { ONBOARDING_KEY } from "./components/OnboardingModal";
 
 const { AudioPlayerModule } = NativeModules;
 
@@ -180,6 +181,8 @@ export default function Index() {
   const [focusMode, setFocusMode] = useState(false);
   // Whether timer sounds are muted
   const [muted, setMuted] = useState(false);
+  // Whether to show the onboarding modal (first launch only)
+  const [showOnboarding, setShowOnboarding] = useState(false);
   // Refs so interval callbacks can read the latest isBreak and muted without stale closures
   const isBreakRef = useRef(false);
   const mutedRef = useRef(false);
@@ -520,6 +523,8 @@ export default function Index() {
           setBreakTime(Number(savedBreak) * 60);
         }
         if (savedFocus) setFocusMode(savedFocus === "true");
+        const seen = await AsyncStorage.getItem(ONBOARDING_KEY);
+        if (!seen) setShowOnboarding(true);
       }
       loadTimes();
     }, []),
@@ -3473,6 +3478,10 @@ export default function Index() {
           </View>
         </SafeAreaView>
       </View>
+      <OnboardingModal
+        visible={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
     </View>
   );
 }
