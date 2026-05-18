@@ -137,9 +137,7 @@ export default function Index() {
   const insets = useSafeAreaInsets();
   // Responsive timer font size: scales with screen width
   const { width: screenWidth } = useWindowDimensions();
-  const timerFontSize = Math.floor(
-    screenWidth * (screenWidth > 420 ? 0.34 : 0.28),
-  );
+  const timerFontSize = Math.floor(screenWidth * 0.28);
   // Mute notification
   const notificationTappedRef = useRef(false);
 
@@ -2874,6 +2872,7 @@ export default function Index() {
                 {/* White outline layer */}
                 <Text
                   numberOfLines={1}
+                  allowFontScaling={false}
                   style={{
                     fontSize: timerFontSize,
                     color: "transparent",
@@ -2891,6 +2890,7 @@ export default function Index() {
                 {/* Transparent fill layer on top */}
                 <Text
                   numberOfLines={1}
+                  allowFontScaling={false}
                   style={{
                     fontSize: timerFontSize,
                     color: "rgba(255,255,255,0.6)",
