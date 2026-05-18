@@ -14,6 +14,7 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import OnboardingModal, { ONBOARDING_KEY } from "./components/OnboardingModal";
 
 // Default times in minutes
 const DEFAULT_WORK = 25;
@@ -32,6 +33,8 @@ export default function Settings() {
   // Holds the raw text while the user is manually typing (null = not editing)
   const [editWorkText, setEditWorkText] = useState<string | null>(null);
   const [editBreakText, setEditBreakText] = useState<string | null>(null);
+  // Whether to show the onboarding/tutorial modal
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   // Bubble animations — each bubble rises independently with its own timing
   const bubble1Y = useRef(new Animated.Value(0)).current;
@@ -472,6 +475,23 @@ export default function Settings() {
           <Text style={{ color: "#fff", fontSize: 16 }}>Reset to defaults</Text>
         </TouchableOpacity>
 
+        {/* Tutorial button */}
+        <TouchableOpacity
+          onPress={() => setShowOnboarding(true)}
+          style={{
+            width: "100%",
+            maxWidth: 400,
+            paddingVertical: 14,
+            borderRadius: 50,
+            borderWidth: 1,
+            borderColor: "rgba(255,255,255,0.4)",
+            alignItems: "center",
+            marginBottom: 16,
+          }}
+        >
+          <Text style={{ color: "#fff", fontSize: 16 }}>Tutorial</Text>
+        </TouchableOpacity>
+
         {/* Save button */}
         <TouchableOpacity
           onPress={saveAndGoBack}
@@ -549,6 +569,10 @@ export default function Settings() {
           }}
         />
       </Animated.View>
+      <OnboardingModal
+        visible={showOnboarding}
+        onClose={() => setShowOnboarding(false)}
+      />
     </SafeAreaView>
   );
 }
