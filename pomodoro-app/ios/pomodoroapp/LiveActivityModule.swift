@@ -44,44 +44,55 @@ class LiveActivityModule: NSObject {
     currentPomodoroCount = Int(pomodoroCount)
     currentPushToken = nil
     currentEndTimestamp = 0
+    // Cancel local timers immediately (sync, before async work)
+    cancelMinuteUpdates()
+    safetyWorkItem?.cancel()
+    safetyWorkItem = nil
 
     let adjustedEnd = Int(totalSeconds) >= 3600 ? endTimestamp - 1.0 : endTimestamp
     currentEndTimestamp = adjustedEnd
     let state = PomodoroActivityAttributes.ContentState(
       endTimestamp: adjustedEnd,
       isPaused: false,
-      timeRemaining: Int(adjustedEnd - Date().timeIntervalSince1970),
+      timeRemaining: Int(totalSeconds), // use totalSeconds directly — avoids clock skew
       sessionType: sessionType,
       totalSeconds: Int(totalSeconds),
       pomodoroCount: currentPomodoroCount
     )
 
-    if let existing = activity {
-      Task { await existing.end(nil, dismissalPolicy: .immediate) }
-      activity = nil
-    }
+    let oldActivity = activity
+    activity = nil
 
-    do {
-      let newActivity = try Activity.request(
-        attributes: PomodoroActivityAttributes(),
-        content: ActivityContent(state: state, staleDate: Date(timeIntervalSince1970: adjustedEnd)),
-        pushType: .token
-      )
-      activity = newActivity
-      Task {
-        for await tokenData in newActivity.pushTokenUpdates {
-          let token = tokenData.map { String(format: "%02x", $0) }.joined()
-          self.currentPushToken = token
-          print("APNs push token received: \(token.prefix(20))...")
-          self.registerScheduler(token: token)
-        }
+    Task {
+      // Await all ends before requesting new — prevents two activities coexisting
+      if let old = oldActivity {
+        await old.end(nil, dismissalPolicy: .immediate)
       }
-      scheduleEndTimer(endTimestamp: adjustedEnd, sessionType: sessionType,
-                       totalSeconds: Int(totalSeconds), pomodoroCount: Int(pomodoroCount))
-      scheduleMinuteUpdates(endTimestamp: adjustedEnd, sessionType: sessionType,
-                            totalSeconds: Int(totalSeconds), pomodoroCount: Int(pomodoroCount))
-    } catch {
-      print("LiveActivity request failed: \(error.localizedDescription)")
+      for orphan in Activity<PomodoroActivityAttributes>.activities {
+        await orphan.end(nil, dismissalPolicy: .immediate)
+      }
+      do {
+        let newActivity = try Activity.request(
+          attributes: PomodoroActivityAttributes(),
+          content: ActivityContent(state: state, staleDate: Date(timeIntervalSince1970: adjustedEnd)),
+          pushType: .token
+        )
+        self.activity = newActivity
+        Task {
+          for await tokenData in newActivity.pushTokenUpdates {
+            let token = tokenData.map { String(format: "%02x", $0) }.joined()
+            self.currentPushToken = token
+            print("APNs push token received: \(token.prefix(20))...")
+            self.registerScheduler(token: token)
+          }
+        }
+        self.scheduleEndTimer(endTimestamp: adjustedEnd, sessionType: sessionType,
+                              totalSeconds: Int(totalSeconds), pomodoroCount: Int(pomodoroCount))
+        self.scheduleMinuteUpdates(endTimestamp: adjustedEnd, sessionType: sessionType,
+                                   totalSeconds: Int(totalSeconds), pomodoroCount: Int(pomodoroCount))
+      } catch {
+        print("LiveActivity request failed: \(error.localizedDescription)")
+      }
     }
   }
 
