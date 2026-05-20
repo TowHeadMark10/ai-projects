@@ -384,7 +384,13 @@ export default function Index() {
   useEffect(() => {
     if (isRunning) {
       // Save when the timer should end so we can recalculate after going to background
-      timerEndTimeRef.current = Date.now() + secondsRef.current * 1000;
+      const sessionSeconds =
+        liveActivityActiveRef.current && !activityIsDoneRef.current
+          ? secondsRef.current // resume: uses the left time
+          : isBreakRef.current
+            ? breakTimeRef.current
+            : workTimeRef.current; // fresh start: uses the right total
+      timerEndTimeRef.current = Date.now() + sessionSeconds * 1000;
 
       // Start or resume the Live Activity on iOS
       if (Platform.OS === "ios") {
@@ -515,7 +521,14 @@ export default function Index() {
           const ms = Number(savedWork) * 60;
           const workChanged = ms !== workTimeRef.current;
           setWorkTime(ms);
-          if (!isRunningRef.current && workChanged) setSeconds(ms);
+          if (!isRunningRef.current && workChanged) {
+            setSeconds(ms);
+            if (Platform.OS === "ios" && liveActivityActiveRef.current) {
+              dismissActivity();
+              liveActivityActiveRef.current = false;
+              activityIsDoneRef.current = false;
+            }
+          }
         }
         if (savedBreak) {
           setBreakTime(Number(savedBreak) * 60);
