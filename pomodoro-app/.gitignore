@@ -41,3 +41,6 @@ app-example
 # generated native folders
 /ios/Pods
 /android
+
+# Android Gradle build cache
+modules/live-activity/android/.gradle/
